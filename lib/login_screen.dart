@@ -287,12 +287,6 @@ class _LoginScreenState extends State<LoginScreen>
           icon: Icons.smartphone_rounded,
           onPressed: () => showOtpSheet(context),
         ),
-        const SizedBox(height: 12),
-        SachOutlineButton(
-          label: 'Biometric Login',
-          icon: Icons.fingerprint_rounded,
-          onPressed: () => showBiometricSheet(context),
-        ),
       ],
     );
   }

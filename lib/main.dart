@@ -10,6 +10,7 @@ import 'file_fir_screen.dart';
 import 'edit_profile_screen.dart';
 import 'privacy_settings_screen.dart';
 import 'notification_settings_screen.dart';
+import 'main_screen.dart';
 
 void main() {
   runApp(const SachApp());
@@ -28,7 +29,7 @@ class SachApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
+        '/dashboard': (context) => const MainScreen(),
         '/my_firs': (context) => const MyFirsScreen(),
         '/alerts': (context) => const AlertsScreen(),
         '/profile': (context) => const ProfileScreen(),

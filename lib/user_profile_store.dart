@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 /// Mutable user profile — all editable fields live here.
-/// Name and CNIC are fixed (NADRA-locked) and cannot be changed.
+/// Name and CNIC are locked (identity-verified) and cannot be changed.
 class UserProfile {
-  // NADRA-locked (read-only in the UI)
+  // Identity-locked (read-only in the UI)
   final String fullName;
   final String cnic;
 

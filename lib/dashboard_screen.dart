@@ -105,7 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   GestureDetector(
                     onTap: () {
                       Navigator.pop(ctx);
-                      sachPush(context, const AlertsScreen());
+                      appTabNotifier.value = 2; // Switch to Alerts tab
                     },
                     child: Text(
                       S.viewAllAlerts,
@@ -395,7 +395,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -526,7 +525,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Icon(Icons.verified_rounded, color: kGold, size: 14),
                     const SizedBox(width: 4),
                     Text(
-                      S.nadraVerified,
+                      S.verifiedCitizen,
                       style: TextStyle(
                         color: kGold,
                         fontSize: 12,
@@ -678,7 +677,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             const Spacer(),
             GestureDetector(
-              onTap: () => sachPush(context, const MyFirsScreen()),
+              onTap: () => appTabNotifier.value = 1, // Switch to My FIRs tab
               child: Text(
                 S.viewAll,
                 style: TextStyle(
@@ -740,93 +739,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ─── Bottom Nav ───────────────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    final items = [
-      (Icons.home_rounded, S.home),
-      (Icons.folder_open_rounded, S.myFirs),
-      (Icons.notifications_rounded, S.alerts),
-      (Icons.person_rounded, S.profile),
-    ];
-    return Container(
-      decoration: BoxDecoration(
-        color: kBgCard,
-        border: Border(top: BorderSide(color: kDivider, width: 1)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            textDirection: TextDirection.ltr,
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final selected = _selectedTab == i;
-              return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedTab = i);
-                  if (i == 1) {
-                    // My FIRs
-                    sachPush(
-                      context,
-                      const MyFirsScreen(),
-                    ).then((_) => setState(() => _selectedTab = 0));
-                  } else if (i == 2) {
-                    // Alerts
-                    sachPush(
-                      context,
-                      const AlertsScreen(),
-                    ).then((_) => setState(() => _selectedTab = 0));
-                  } else if (i == 3) {
-                    // Profile
-                    sachPush(
-                      context,
-                      const ProfileScreen(),
-                    ).then((_) => setState(() => _selectedTab = 0));
-                  }
-                },
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? kGreen.withOpacity(0.12)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        items[i].$1,
-                        color: selected ? kGold : kTextSub,
-                        size: 24,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        items[i].$2,
-                        style: TextStyle(
-                          color: selected ? kGold : kTextSub,
-                          fontSize: 11,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ─── Stat Chip ────────────────────────────────────────────────────────────────

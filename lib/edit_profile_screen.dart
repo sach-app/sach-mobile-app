@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'theme.dart';
 import 'app_strings.dart';
 import 'app_nav.dart';
@@ -171,11 +172,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   validator: (v) {
                     if (v != null && v.isNotEmpty) {
                       final digits = v.replaceAll(RegExp(r'\D'), '');
-                      if (digits.length < 10)
-                        return 'Enter a valid phone number';
+                      if (digits.length != 12 || !digits.startsWith('923'))
+                        return 'Enter a valid 10-digit phone number';
                     }
                     return null;
                   },
+                  inputFormatters: [_PhoneFormatter()],
                 ),
                 const SizedBox(height: 16),
 
@@ -225,8 +227,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // ── NADRA notice ─────────────────────────────────────────────
-                _buildNadraNotice(),
+                // ── Locked fields notice ──────────────────────────────────
+                _buildLockedNotice(),
                 const SizedBox(height: 28),
 
                 // ── Save button ──────────────────────────────────────────────
@@ -314,7 +316,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ],
         ),
         const SizedBox(height: 14),
-        // NADRA-locked name
+        // Identity-locked name
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -331,7 +333,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ],
         ),
         const SizedBox(height: 5),
-        // NADRA-locked CNIC
+        // Identity-locked CNIC
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -419,8 +421,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // ── NADRA notice ──────────────────────────────────────────────────────────
-  Widget _buildNadraNotice() {
+  // ── Locked fields notice ──────────────────────────────────────────────────
+  Widget _buildLockedNotice() {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -446,7 +448,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           Expanded(
             child: Text(
-              S.epNadraNotice,
+              S.epLockedNotice,
               style: TextStyle(
                 color: kGold.withOpacity(0.8),
                 fontSize: 11.5,
@@ -456,6 +458,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Phone Formatter ──────────────────────────────────────────────────────────
+class _PhoneFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue old,
+    TextEditingValue next,
+  ) {
+    // Extract only digits from the raw input
+    String digits = next.text.replaceAll(RegExp(r'\D'), '');
+    // Remove leading '92' if user typed it (we always show +92)
+    if (digits.startsWith('92')) digits = digits.substring(2);
+    // Remove leading '0' (habit: 03XX → 3XX)
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    // First digit must be 3 — discard anything else
+    if (digits.isNotEmpty && digits[0] != '3') digits = '';
+    // Cap at 10 digits (excluding +92)
+    if (digits.length > 10) digits = digits.substring(0, 10);
+    // Build formatted string: +92 followed by digits
+    final text = '+92 $digits';
+    return next.copyWith(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

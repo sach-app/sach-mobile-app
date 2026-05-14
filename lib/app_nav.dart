@@ -9,6 +9,9 @@ import 'sach_route.dart';
 // Forward-declare to avoid circular imports — resolved at call site via dynamic navigation.
 // Each screen passes its "current page index" so its own tab isn't tapped.
 
+/// Global notifier for the main application tab index (0=Home, 1=MyFirs, 2=Alerts, 3=Profile)
+final appTabNotifier = ValueNotifier<int>(0);
+
 /// Build the standard 3-dots [PopupMenuButton] used on every screen.
 ///
 /// [currentIdx] — 0=Home/Dashboard, 1=My FIRs, 2=Alerts, 3=Profile
@@ -66,16 +69,20 @@ Future<void> _handleMenuAction(BuildContext context, String value) async {
       Navigator.of(context).pushNamed('/edit_profile');
       break;
     case 'nav_home':
-      sachPushAndRemoveUntil(context, const _DashProxy());
+      appTabNotifier.value = 0;
+      Navigator.of(context).popUntil((route) => route.settings.name == '/dashboard');
       break;
     case 'nav_my_firs':
-      sachPush(context, const _MyFirsProxy());
+      appTabNotifier.value = 1;
+      Navigator.of(context).popUntil((route) => route.settings.name == '/dashboard');
       break;
     case 'nav_alerts':
-      sachPush(context, const _AlertsProxy());
+      appTabNotifier.value = 2;
+      Navigator.of(context).popUntil((route) => route.settings.name == '/dashboard');
       break;
     case 'nav_profile':
-      sachPush(context, const _ProfileProxy());
+      appTabNotifier.value = 3;
+      Navigator.of(context).popUntil((route) => route.settings.name == '/dashboard');
       break;
     case 'nav_file_fir':
       final result = await sachPush<FirItem>(context, const _FileFirProxy());

@@ -11,7 +11,6 @@ class PrivacySettingsScreen extends StatefulWidget {
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   // Toggle states
   bool _twoFactor = true;
-  bool _biometricLogin = false;
   bool _locationAccess = true;
   bool _dataSharing = false;
   bool _activityVisible = true;
@@ -59,15 +58,6 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   value: _twoFactor,
                   onChanged: (v) => setState(() => _twoFactor = v),
                   accent: kGreen,
-                ),
-                _divider(),
-                _toggleTile(
-                  icon: Icons.fingerprint_rounded,
-                  title: 'Biometric Login',
-                  subtitle: 'Use fingerprint or face ID to sign in',
-                  value: _biometricLogin,
-                  onChanged: (v) => setState(() => _biometricLogin = v),
-                  accent: kGold,
                 ),
                 _divider(),
                 _toggleTile(
@@ -149,7 +139,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   onTap: () => _confirmAction(
                     context,
                     'Deactivate Account',
-                    'Your account will be temporarily disabled. You can reactivate by contacting NADRA.',
+                    'Your account will be temporarily disabled. You can reactivate by contacting support.',
                   ),
                   danger: true,
                 ),
