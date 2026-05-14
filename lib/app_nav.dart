@@ -164,8 +164,8 @@ class _LazyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // We use the named routes already registered in main.dart
-    // For screens not in named routes, navigate via a future frame
+    // Use pushReplacementNamed so this blank proxy screen is removed from
+    // the stack — fixes the double-back-tap issue.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
       switch (tag) {
@@ -173,16 +173,16 @@ class _LazyScreen extends StatelessWidget {
           Navigator.of(context).pushReplacementNamed('/dashboard');
           break;
         case 'my_firs':
-          Navigator.of(context).pushNamed('/my_firs');
+          Navigator.of(context).pushReplacementNamed('/my_firs');
           break;
         case 'alerts':
-          Navigator.of(context).pushNamed('/alerts');
+          Navigator.of(context).pushReplacementNamed('/alerts');
           break;
         case 'profile':
-          Navigator.of(context).pushNamed('/profile');
+          Navigator.of(context).pushReplacementNamed('/profile');
           break;
         case 'file_fir':
-          Navigator.of(context).pushNamed('/file_fir');
+          Navigator.of(context).pushReplacementNamed('/file_fir');
           break;
       }
     });

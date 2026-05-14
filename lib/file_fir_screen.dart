@@ -932,7 +932,7 @@ class _FileFirScreenState extends State<FileFirScreen>
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    'Encrypted via SHA-256 & anchored to Hyperledger Blockchain.',
+                    'Encrypted via SHA-256 & anchored to SACH Ledger.',
                     style: TextStyle(color: kTextSub, fontSize: 11),
                     textAlign: TextAlign.center,
                   ),
@@ -1017,7 +1017,7 @@ class _SubmitSuccessDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Your complaint has been securely filed and anchored to the Hyperledger Blockchain.',
+              'Your complaint has been securely filed and anchored to the SACH Ledger.',
               textAlign: TextAlign.center,
               style: TextStyle(color: kTextSub, fontSize: 13, height: 1.5),
             ),

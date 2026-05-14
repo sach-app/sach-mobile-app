@@ -11,6 +11,7 @@ import 'locale_store.dart';
 import 'alert_store.dart';
 import 'app_strings.dart';
 import 'app_nav.dart';
+import 'sach_header.dart';
 import 'fir_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -400,81 +401,46 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ─── App Bar ──────────────────────────────────────────────────────────────
   Widget _buildAppBar() {
     final isUrdu = LocaleStore.instance.isUrdu;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: kBgCard,
-        border: Border(bottom: BorderSide(color: kDivider, width: 1)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
+    return SachHeader(
+      title: S.appName,
+      actions: [
+        // Language toggle button
+        GestureDetector(
+          onTap: () => LocaleStore.instance.toggle(),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [kGreen, Color(0xFF015C2E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: kInputBg,
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: kDivider, width: 1),
             ),
-            child: const Center(
-              child: Icon(Icons.shield_rounded, color: Colors.white, size: 18),
+            child: Row(
+              children: [
+                Text(
+                  'EN',
+                  style: TextStyle(
+                    color: isUrdu ? kTextSub : kGold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text('  |  ', style: TextStyle(color: kDivider, fontSize: 12)),
+                Text(
+                  'اردو',
+                  style: TextStyle(
+                    color: isUrdu ? kGold : kTextSub,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 10),
-          Text(
-            S.appName,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.95),
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const Spacer(),
-          // Language toggle button
-          GestureDetector(
-            onTap: () => LocaleStore.instance.toggle(),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: kInputBg,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: kDivider, width: 1),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'EN',
-                    style: TextStyle(
-                      color: isUrdu ? kTextSub : kGold,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '  |  ',
-                    style: TextStyle(color: kDivider, fontSize: 12),
-                  ),
-                  Text(
-                    'اردو',
-                    style: TextStyle(
-                      color: isUrdu ? kGold : kTextSub,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          buildAppMenu(context, 0),
-        ],
-      ),
+        ),
+        const SizedBox(width: 4),
+        buildAppMenu(context, 0),
+      ],
     );
   }
 
@@ -769,7 +735,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-
 }
 
 // ─── Stat Chip ────────────────────────────────────────────────────────────────

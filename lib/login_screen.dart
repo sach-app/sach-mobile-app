@@ -58,39 +58,11 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: kGreen,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Center(
-                child: Text(
-                  'S',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'SACH',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-                letterSpacing: 2,
-              ),
-            ),
-          ],
-        ),
+        title: Image.asset(
+            'assets/images/sach_logo.png',
+            height: 48,
+            fit: BoxFit.contain,
+          ),
       ),
       body: Stack(
         children: [
@@ -147,30 +119,11 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildHeader() {
     return Column(
       children: [
-        // Glowing shield icon
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [kGreen, Color(0xFF015C2E)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: kGreen.withOpacity(0.5),
-                blurRadius: 28,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.shield_rounded,
-            color: Colors.white,
-            size: 36,
-          ),
+        // Logo
+        Image.asset(
+          'assets/images/sach_logo.png',
+          height: 64,
+          fit: BoxFit.contain,
         ),
         const SizedBox(height: 18),
         // Bilingual heading

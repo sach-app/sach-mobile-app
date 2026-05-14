@@ -27,6 +27,7 @@ class S {
   static String get closed => _u ? 'بند' : 'Closed';
   static String get underReview => _u ? 'جائزہ' : 'Under Review';
   static String get verified => _u ? 'تصدیق شدہ' : 'VERIFIED';
+  static String get nadraVerified => _u ? 'ساچ تصدیق شدہ' : 'SACH Verified';
   static String get verifiedCitizen => _u ? 'تصدیق شدہ شہری' : 'Verified Citizen';
   static String get noResults => _u ? 'کوئی نتیجہ نہیں' : 'No results';
   static String get logout => _u ? 'لاگ آؤٹ' : 'Logout';
@@ -121,6 +122,9 @@ class S {
   static String get epSaveChanges =>
       _u ? 'تبدیلیاں محفوظ کریں' : 'Save Changes';
   static String get epCancel => _u ? 'منسوخ' : 'Cancel';
+  static String get epNadraNotice => _u
+      ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام اور شناختی کارڈ ساچ ویریفیکیشن سے مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
+      : 'Verified Account: Your Name and CNIC are locked via SACH Verification and cannot be altered.';
   static String get epLockedNotice => _u
       ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام اور شناختی کارڈ مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
       : 'Verified Account: Your Name and CNIC are locked and cannot be altered.';
