@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'sach_route.dart';
 import 'app_nav.dart';
+import 'edit_profile_screen.dart';
 import 'app_strings.dart';
 import 'user_profile_store.dart';
 import 'privacy_settings_screen.dart';
