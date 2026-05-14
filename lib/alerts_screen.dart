@@ -3,6 +3,7 @@ import 'theme.dart';
 import 'locale_store.dart';
 import 'app_strings.dart';
 import 'app_nav.dart';
+import 'sach_header.dart';
 import 'alert_store.dart';
 import 'sach_route.dart';
 import 'dashboard_screen.dart';
@@ -44,42 +45,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
       child: Scaffold(
         backgroundColor: kBgDeep,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(kToolbarHeight),
+          preferredSize: const Size.fromHeight(kToolbarHeight + 4),
           child: Directionality(
             textDirection: TextDirection.ltr,
-            child: AppBar(
-              backgroundColor: kBgCard,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: kGold,
-                  size: 18,
-                ),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    S.alertsTitle,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                  if (store.unreadCount > 0)
-                    Text(
-                      '${store.unreadCount} ${S.unread}',
-                      style: const TextStyle(
-                        color: kGold,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
-              ),
+            child: SachHeader(
+              title: S.alertsTitle,
+              subtitle: store.unreadCount > 0
+                  ? '${store.unreadCount} ${S.unread}'
+                  : null,
               actions: [
                 if (store.unreadCount > 0)
                   TextButton(

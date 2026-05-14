@@ -27,7 +27,7 @@ class S {
   static String get closed => _u ? 'بند' : 'Closed';
   static String get underReview => _u ? 'جائزہ' : 'Under Review';
   static String get verified => _u ? 'تصدیق شدہ' : 'VERIFIED';
-  static String get nadraVerified => _u ? 'نادرا تصدیق شدہ' : 'NADRA Verified';
+  static String get nadraVerified => _u ? 'ساچ تصدیق شدہ' : 'SACH Verified';
   static String get noResults => _u ? 'کوئی نتیجہ نہیں' : 'No results';
   static String get logout => _u ? 'لاگ آؤٹ' : 'Logout';
 
@@ -124,8 +124,8 @@ class S {
       _u ? 'تبدیلیاں محفوظ کریں' : 'Save Changes';
   static String get epCancel => _u ? 'منسوخ' : 'Cancel';
   static String get epNadraNotice => _u
-      ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام اور شناختی کارڈ نادرا ای-کے وائی سی سے مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
-      : 'Verified Account: Your Name and CNIC are locked via NADRA e-KYC and cannot be altered.';
+      ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام اور شناختی کارڈ ساچ ویریفیکیشن سے مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
+      : 'Verified Account: Your Name and CNIC are locked via SACH Verification and cannot be altered.';
 
   // ── File FIR ────────────────────────────────────────────────────────────────
   static String get fileFir => _u ? 'ای-ایف آئی آر داخل کریں' : 'File e-FIR';

@@ -498,7 +498,7 @@ class FirDetailScreen extends StatelessWidget {
         _Divider(),
         _DetailRow(
           icon: Icons.verified_rounded,
-          label: 'NADRA Verified',
+          label: 'SACH Verified',
           value: 'Yes — Biometric confirmed',
           highlight: true,
         ),

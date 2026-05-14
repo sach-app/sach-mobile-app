@@ -10,6 +10,7 @@ import 'sach_route.dart';
 import 'locale_store.dart';
 import 'app_strings.dart';
 import 'app_nav.dart';
+import 'sach_header.dart';
 import 'fir_detail_screen.dart';
 
 class MyFirsScreen extends StatefulWidget {
@@ -64,21 +65,11 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
       child: Scaffold(
         backgroundColor: kBgDeep,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(kToolbarHeight),
+          preferredSize: const Size.fromHeight(kToolbarHeight + 4),
           child: Directionality(
             textDirection: TextDirection.ltr,
-            child: AppBar(
-              backgroundColor: kBgCard,
-              elevation: 0,
-              automaticallyImplyLeading: false,
-              title: Text(
-                S.myComplaints,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 20,
-                ),
-              ),
+            child: SachHeader(
+              title: S.myComplaints,
               actions: [
                 // Filter button
                 PopupMenuButton<String?>(

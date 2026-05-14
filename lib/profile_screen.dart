@@ -11,6 +11,7 @@ import 'user_profile_store.dart';
 import 'privacy_settings_screen.dart';
 import 'notification_settings_screen.dart';
 import 'locale_store.dart';
+import 'sach_header.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -41,57 +42,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final p = UserProfileStore.instance.profile;
     return Scaffold(
       backgroundColor: kBgDeep,
-      appBar: AppBar(
-        backgroundColor: kBgCard,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: kGold,
-            size: 18,
-          ),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(
-          S.profileTitle,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
-        ),
-        actions: [
-          buildAppMenu(
-            context,
-            3,
-            extraItems: [
-              PopupMenuItem<String>(
-                value: 'edit_profile',
-                padding: EdgeInsets.zero,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.edit_rounded, color: kGold, size: 18),
-                      const SizedBox(width: 12),
-                      Text(
-                        S.editProfile,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight + 4),
+        child: SachHeader(
+          title: S.profileTitle,
+          actions: [
+            buildAppMenu(
+              context,
+              3,
+              extraItems: [
+                PopupMenuItem<String>(
+                  value: 'edit_profile',
+                  padding: EdgeInsets.zero,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.edit_rounded, color: kGold, size: 18),
+                        const SizedBox(width: 12),
+                        Text(
+                          S.editProfile,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
       body: Stack(
         children: [

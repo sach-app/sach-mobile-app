@@ -63,15 +63,17 @@ class _SachSplashScreenState extends State<SachSplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _logoCtrl;
   late final AnimationController _contentCtrl;
-  late final AnimationController _pulseCtrl;
-  late final AnimationController _orbitCtrl;
+  late final AnimationController _shimmerCtrl;
+  late final AnimationController _glowCtrl;
+  late final AnimationController _lineCtrl;
 
   late final Animation<double> _logoScale;
   late final Animation<double> _logoFade;
   late final Animation<double> _contentFade;
   late final Animation<Offset> _contentSlide;
-  late final Animation<double> _pulse;
-  late final Animation<double> _orbit;
+  late final Animation<double> _shimmer;
+  late final Animation<double> _glow;
+  late final Animation<double> _lineWidth;
 
   @override
   void initState() {
@@ -85,14 +87,18 @@ class _SachSplashScreenState extends State<SachSplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _pulseCtrl = AnimationController(
+    _shimmerCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _orbitCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(milliseconds: 2500),
     )..repeat();
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat(reverse: true);
+    _lineCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
 
     _logoScale = CurvedAnimation(
       parent: _logoCtrl,
@@ -112,15 +118,23 @@ class _SachSplashScreenState extends State<SachSplashScreen>
       curve: Curves.easeOutCubic,
     ).drive(Tween(begin: const Offset(0, 0.12), end: Offset.zero));
 
-    _pulse = CurvedAnimation(
-      parent: _pulseCtrl,
+    _shimmer = CurvedAnimation(
+      parent: _shimmerCtrl,
       curve: Curves.easeInOut,
-    ).drive(Tween(begin: 0.85, end: 1.15));
-    _orbit = _orbitCtrl.drive(Tween(begin: 0.0, end: 2 * pi));
+    ).drive(Tween(begin: -1.5, end: 2.5));
+    _glow = CurvedAnimation(
+      parent: _glowCtrl,
+      curve: Curves.easeInOut,
+    ).drive(Tween(begin: 0.3, end: 0.8));
+    _lineWidth = CurvedAnimation(
+      parent: _lineCtrl,
+      curve: Curves.easeOutCubic,
+    ).drive(Tween(begin: 0.0, end: 1.0));
 
     // Stagger animations
     Future.delayed(const Duration(milliseconds: 100), () {
       _logoCtrl.forward().then((_) {
+        _lineCtrl.forward();
         Future.delayed(
           const Duration(milliseconds: 200),
           () => _contentCtrl.forward(),
@@ -133,8 +147,9 @@ class _SachSplashScreenState extends State<SachSplashScreen>
   void dispose() {
     _logoCtrl.dispose();
     _contentCtrl.dispose();
-    _pulseCtrl.dispose();
-    _orbitCtrl.dispose();
+    _shimmerCtrl.dispose();
+    _glowCtrl.dispose();
+    _lineCtrl.dispose();
     super.dispose();
   }
 
@@ -164,41 +179,52 @@ class _SachSplashScreenState extends State<SachSplashScreen>
                       children: [
                         const SizedBox(height: 16),
 
-                        // Animated Logo
+                        // Animated Logo with shimmer
                         FadeTransition(
                           opacity: _logoFade,
                           child: ScaleTransition(
                             scale: _logoScale,
-                            child: _AnimatedLogo(pulse: _pulse, orbit: _orbit),
+                            child: _ShimmerLogo(shimmer: _shimmer, glow: _glow),
                           ),
                         ),
 
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 8),
 
-                        // Title + subtitle
+                        // Animated accent line
+                        AnimatedBuilder(
+                          animation: _lineWidth,
+                          builder: (context, _) {
+                            return Container(
+                              width: 120 * _lineWidth.value,
+                              height: 1.5,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(1),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    kPurple.withOpacity(0.0),
+                                    kPurple.withOpacity(0.6),
+                                    kPurple.withOpacity(0.0),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        // Subtitle
                         FadeTransition(
                           opacity: _logoFade,
-                          child: Column(
-                            children: [
-                              _GradientText(
-                                'SACH',
-                                style: const TextStyle(
-                                  fontSize: 52,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 10,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Secure Authenticated Complaint Handling',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: kPurple.withOpacity(0.9),
-                                  letterSpacing: 3.0,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            'Secure Authenticated Complaint Handling',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: kPurple.withOpacity(0.9),
+                              letterSpacing: 3.0,
+                            ),
                           ),
                         ),
 
@@ -284,103 +310,48 @@ class _GlowBlob extends StatelessWidget {
   }
 }
 
-// ─── Animated Logo ─────────────────────────────────────────────────────────
-class _AnimatedLogo extends StatelessWidget {
-  final Animation<double> pulse;
-  final Animation<double> orbit;
-  const _AnimatedLogo({required this.pulse, required this.orbit});
+// ─── Shimmer Logo ──────────────────────────────────────────────────────────
+class _ShimmerLogo extends StatelessWidget {
+  final Animation<double> shimmer;
+  final Animation<double> glow;
+  const _ShimmerLogo({required this.shimmer, required this.glow});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([pulse, orbit]),
-      builder: (context, _) {
-        return SizedBox(
-          width: 140,
-          height: 140,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Outer orbiting ring dots
-              ...List.generate(6, (i) {
-                final angle = orbit.value + (i * pi / 3);
-                const r = 60.0;
-                final x = cos(angle) * r;
-                final y = sin(angle) * r;
-                final opacity = (0.3 + 0.7 * sin(angle)).clamp(0.15, 0.9);
-                return Transform.translate(
-                  offset: Offset(x, y),
-                  child: Container(
-                    width: i % 2 == 0 ? 6 : 4,
-                    height: i % 2 == 0 ? 6 : 4,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: (i % 2 == 0 ? kCyan : kPurple).withOpacity(
-                        opacity.toDouble(),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-
-              // Pulse ring
-              Transform.scale(
-                scale: pulse.value,
-                child: Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: kCyan.withOpacity(0.15),
-                      width: 1,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Core icon container
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.08),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kCyan.withOpacity(0.25),
-                      blurRadius: 32,
-                      spreadRadius: 4,
-                    ),
-                    BoxShadow(
-                      color: kPurple.withOpacity(0.2),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [kCyan, kPurple],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ).createShader(bounds),
-                  child: const Icon(
-                    Icons.balance,
-                    size: 36,
-                    color: Colors.white,
-                  ),
-                ),
+      animation: Listenable.merge([shimmer, glow]),
+      builder: (context, child) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: kPurple.withOpacity(glow.value * 0.2),
+                blurRadius: 50,
+                spreadRadius: 10,
               ),
             ],
+          ),
+          child: ShaderMask(
+            shaderCallback: (bounds) {
+              return LinearGradient(
+                begin: Alignment(shimmer.value - 0.5, -0.3),
+                end: Alignment(shimmer.value + 0.5, 0.3),
+                colors: const [
+                  Color(0xFFD4AF37),
+                  Color(0xFFFFF8DC),
+                  Color(0xFFD4AF37),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ).createShader(bounds);
+            },
+            blendMode: BlendMode.srcATop,
+            child: Image.asset(
+              'assets/images/sach_logo.png',
+              height: 90,
+              fit: BoxFit.contain,
+            ),
           ),
         );
       },
@@ -415,25 +386,17 @@ class _AuthCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Card header
-          Text(
-            'Citizen Access Portal',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.95),
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'حکومت پاکستان — Government of Pakistan',
-            style: TextStyle(
-              color: kTextSub,
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
+          Center(
+            child: Text(
+              'Citizen Access Portal',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.95),
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
             ),
           ),
 
@@ -445,7 +408,7 @@ class _AuthCard extends StatelessWidget {
           _GradientButton(
             onPressed: () => Navigator.of(context).pushNamed('/signup'),
             icon: Icons.fingerprint_rounded,
-            label: 'Register via NADRA',
+            label: 'Register via SACH',
           ),
 
           const SizedBox(height: 14),
@@ -472,7 +435,7 @@ class _AuthCard extends StatelessWidget {
               const SizedBox(width: 4),
               _TrustBadge(
                 icon: Icons.verified_rounded,
-                label: 'NADRA Verified',
+                label: 'SACH Verified',
               ),
             ],
           ),
@@ -717,7 +680,7 @@ class _FooterBadge extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            'Secured via Hyperledger Fabric · NADRA Integration',
+            'Identity verification via Mock NADRA API',
             style: TextStyle(
               color: kPurple.withOpacity(0.7),
               fontSize: 11,

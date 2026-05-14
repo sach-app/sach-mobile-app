@@ -117,39 +117,11 @@ class _SignupScreenState extends State<SignupScreen>
         ),
         onPressed: () => Navigator.of(context).pop(),
       ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: kGreen,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Center(
-              child: Text(
-                'S',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                ),
-              ),
-            ),
+      title: Image.asset(
+            'assets/images/sach_logo.png',
+            height: 48,
+            fit: BoxFit.contain,
           ),
-          const SizedBox(width: 8),
-          const Text(
-            'SACH',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 17,
-              letterSpacing: 2,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -349,7 +321,7 @@ class _SignupScreenState extends State<SignupScreen>
               ),
               const SizedBox(width: 10),
               Text(
-                'NADRA E-KYC Verification',
+                'SACH Verification',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 15,
