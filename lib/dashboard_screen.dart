@@ -425,10 +425,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(
-                  '  |  ',
-                  style: TextStyle(color: kDivider, fontSize: 12),
-                ),
+                Text('  |  ', style: TextStyle(color: kDivider, fontSize: 12)),
                 Text(
                   'اردو',
                   style: TextStyle(
@@ -738,7 +735,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-
 }
 
 // ─── Stat Chip ────────────────────────────────────────────────────────────────

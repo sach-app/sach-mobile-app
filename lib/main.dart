@@ -434,10 +434,7 @@ class _AuthCard extends StatelessWidget {
               const SizedBox(width: 4),
               Container(width: 1, height: 12, color: kDivider),
               const SizedBox(width: 4),
-              _TrustBadge(
-                icon: Icons.verified_rounded,
-                label: 'SACH Verified',
-              ),
+              _TrustBadge(icon: Icons.verified_rounded, label: 'SACH Verified'),
             ],
           ),
         ],
