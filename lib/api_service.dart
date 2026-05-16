@@ -179,8 +179,7 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return true;
     } else {
-      final errorBody = await response.stream.bytesToString();
-      throw Exception('Server error ${response.statusCode}: $errorBody');
+      return false;
     }
   }
 

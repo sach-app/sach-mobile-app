@@ -130,8 +130,8 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading evidence: $e'),
+          const SnackBar(
+            content: Text('Failed to upload evidence'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
