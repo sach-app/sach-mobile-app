@@ -264,8 +264,7 @@ class SachFooterLinks extends StatelessWidget {
   );
 }
 
-
-// ─── SMS OTP Sheet ────────────────────────────────────────────────────────────
+// ─── Email OTP Sheet ────────────────────────────────────────────────────────────
 void showOtpSheet(
   BuildContext context,
   String cnic, {
@@ -407,7 +406,7 @@ class _OtpSheetState extends State<_OtpSheet> {
           const SizedBox(height: 20),
 
           Text(
-            _verified ? 'OTP Verified!' : 'Enter SMS OTP',
+            _verified ? 'OTP Verified!' : 'Enter Email OTP',
             style: TextStyle(
               color: _verified ? kGold : Colors.white.withOpacity(0.95),
               fontSize: 20,

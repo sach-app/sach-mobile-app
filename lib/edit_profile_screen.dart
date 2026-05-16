@@ -20,7 +20,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _altPhoneCtrl;
   late final TextEditingController _emailCtrl;
-  late final TextEditingController _addressCtrl;
+
   late final TextEditingController _cityCtrl;
   late String? _selectedDistrict;
 
@@ -51,8 +51,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.initState();
     final p = UserProfileStore.instance.profile;
     _altPhoneCtrl = TextEditingController(text: p.altPhone);
+
     _emailCtrl = TextEditingController(text: p.email);
-    _addressCtrl = TextEditingController(text: p.address);
     _cityCtrl = TextEditingController(text: p.city);
     _selectedDistrict = _districts.contains(p.district) ? p.district : null;
   }
@@ -61,7 +61,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _altPhoneCtrl.dispose();
     _emailCtrl.dispose();
-    _addressCtrl.dispose();
     _cityCtrl.dispose();
     super.dispose();
   }
@@ -76,7 +75,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'full_name': UserProfileStore.instance.profile.fullName,
         'phone': _altPhoneCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
-        'address': _addressCtrl.text.trim(),
+        'address': UserProfileStore.instance.profile.address,
       });
 
       if (!mounted) return;
@@ -85,7 +84,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         UserProfileStore.instance.saveEdits(
           altPhone: _altPhoneCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
-          address: _addressCtrl.text.trim(),
+          address: UserProfileStore.instance.profile.address,
           district: _selectedDistrict ?? '',
           city: _cityCtrl.text.trim(),
         );
@@ -284,12 +283,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 12),
 
                 SachLabel(S.permanentAddress),
-                TextFormField(
-                  controller: _addressCtrl,
-                  maxLines: 3,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: sachInputDecoration(hint: S.epAddressHint),
-                ),
+                _lockedField(profile.address),
                 const SizedBox(height: 16),
 
                 SachLabel(S.district),
