@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
@@ -12,7 +13,9 @@ import 'privacy_settings_screen.dart';
 import 'notification_settings_screen.dart';
 import 'main_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   runApp(const SachApp());
 }
 
