@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'api_service.dart';
+import 'user_profile_store.dart';
 import 'theme.dart';
 import 'fir_model.dart';
 import 'fir_store.dart';
@@ -38,18 +41,34 @@ class _DashboardScreenState extends State<DashboardScreen>
     _fadeCtrl.forward();
     FirStore.instance.addListener(_onStoreUpdate);
     LocaleStore.instance.addListener(_onLocaleUpdate);
+    UserProfileStore.instance.addListener(_onProfileUpdate);
+    _fetchProfile();
   }
 
   @override
   void dispose() {
     FirStore.instance.removeListener(_onStoreUpdate);
     LocaleStore.instance.removeListener(_onLocaleUpdate);
+    UserProfileStore.instance.removeListener(_onProfileUpdate);
     _fadeCtrl.dispose();
     super.dispose();
   }
 
   void _onStoreUpdate() => setState(() {});
   void _onLocaleUpdate() => setState(() {});
+  void _onProfileUpdate() => setState(() {});
+
+  Future<void> _fetchProfile() async {
+    try {
+      final response = await ApiService.get('/user/profile');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        UserProfileStore.instance.updateFromMap(data);
+      }
+    } catch (e) {
+      // Silently fail or log
+    }
+  }
 
   // Navigate to FileFirScreen and add the returned FIR to the store
   Future<void> _openFileFir() async {
@@ -509,7 +528,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Muhammad Ahmed Khan',
+                  UserProfileStore.instance.profile.fullName,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.95),
                     fontSize: 16,

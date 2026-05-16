@@ -1,5 +1,8 @@
+  import 'dart:convert';
   import 'package:flutter/material.dart';
   import 'package:flutter/services.dart';
+  import 'package:http/http.dart' as http;
+  import 'api_config.dart';
   import 'theme.dart';
 
   class SignupScreen extends StatefulWidget {
@@ -12,10 +15,14 @@
   class _SignupScreenState extends State<SignupScreen>
       with SingleTickerProviderStateMixin {
     final _formKey = GlobalKey<FormState>();
-    int _selectedTab = 0; // 0 = Resident (CNIC), 1 = Overseas (NICOP)
+    int _selectedTab = 0;
     final _nameController = TextEditingController();
+    final _emailController = TextEditingController();
     final _cnicController = TextEditingController();
     final _mobileController = TextEditingController();
+    final _passwordController = TextEditingController();
+    bool _isPasswordVisible = false;
+    bool _isLoading = false;
 
     late final AnimationController _fadeCtrl;
     late final Animation<double> _fade;
@@ -34,15 +41,68 @@
     @override
     void dispose() {
       _nameController.dispose();
+      _emailController.dispose();
       _cnicController.dispose();
       _mobileController.dispose();
+      _passwordController.dispose();
       _fadeCtrl.dispose();
       super.dispose();
     }
 
-    void _submit() {
-      if (_formKey.currentState?.validate() ?? false) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+    Future<void> _submit() async {
+      if (!(_formKey.currentState?.validate() ?? false)) return;
+
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final response = await http.post(
+          Uri.parse('${ApiConfig.baseUrl}/user/signup'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({
+            'full_name': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'cnic': _cnicController.text.trim(),
+            'phone': _mobileController.text.trim(),
+            'password': _passwordController.text,
+          }),
+        );
+
+        if (!mounted) return;
+
+        if (response.statusCode == 201) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created successfully. Please login.')),
+          );
+          Navigator.of(context).pushReplacementNamed('/login');
+        } else {
+          final data = jsonDecode(response.body);
+          final errorDetail = data['detail'] ?? 'Registration failed';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorDetail.toString()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Network error. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
 
@@ -79,13 +139,15 @@
                               const SizedBox(height: 24),
                               _buildFormFields(),
                               const SizedBox(height: 24),
-                              _buildKycSection(),
-                              const SizedBox(height: 24),
-                              SachGradientButton(
-                                label: 'Create Secure Account',
-                                icon: Icons.shield_rounded,
-                                onPressed: _submit,
-                              ),
+                              _isLoading
+                                  ? const Center(
+                                      child: CircularProgressIndicator(color: kGold),
+                                    )
+                                  : SachGradientButton(
+                                      label: 'Create Secure Account',
+                                      icon: Icons.shield_rounded,
+                                      onPressed: _submit,
+                                    ),
                               const SizedBox(height: 20),
                               _buildSignInLink(),
                               const SizedBox(height: 24),
@@ -147,7 +209,6 @@
             ),
           ),
           const SizedBox(height: 2),
-          // Bilingual subtitle
           Text(
             'Register securely with government verification',
             style: TextStyle(color: kTextSub, fontSize: 13),
@@ -240,6 +301,29 @@
           ),
           const SizedBox(height: 18),
 
+          const SachLabel('Email Address'),
+          TextFormField(
+            controller: _emailController,
+            style: const TextStyle(color: Colors.white),
+            keyboardType: TextInputType.emailAddress,
+            decoration: sachInputDecoration(
+              hint: 'Enter your email address',
+              prefixIcon: const Icon(
+                Icons.email_outlined,
+                color: kGold,
+                size: 20,
+              ),
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Email is required';
+              if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(v.trim())) {
+                return 'Enter a valid email address';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 18),
+
           SachLabel(_selectedTab == 0 ? 'CNIC Number' : 'NICOP Number'),
           TextFormField(
             controller: _cnicController,
@@ -283,64 +367,42 @@
               return null;
             },
           ),
+          const SizedBox(height: 18),
+
+          const SachLabel('Password'),
+          TextFormField(
+            controller: _passwordController,
+            style: const TextStyle(color: Colors.white),
+            obscureText: !_isPasswordVisible,
+            decoration: sachInputDecoration(
+              hint: 'Enter your password',
+              prefixIcon: const Icon(Icons.lock_outline_rounded, color: kGold, size: 20),
+            ).copyWith(
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isPasswordVisible
+                      ? Icons.visibility_rounded
+                      : Icons.visibility_off_rounded,
+                  color: kGold,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              ),
+            ),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Password is required';
+              if (v.length < 8) return 'Password must be at least 8 characters';
+              return null;
+            },
+          ),
         ],
       );
     }
 
-    Widget _buildKycSection() {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: kBgCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kGold.withOpacity(0.25), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: kGold.withOpacity(0.05),
-              blurRadius: 30,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kGold,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'SACH Verification',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            SachGradientButton(
-              label: 'Send Mobile OTP',
-              icon: Icons.smartphone_rounded,
-              onPressed: () => showOtpSheet(context),
-            ),
-          ],
-        ),
-      );
-    }
 
     Widget _buildSignInLink() {
       return Row(
@@ -395,7 +457,6 @@
     }
   }
 
-  // ─── CNIC Formatter ───────────────────────────────────────────────────────────
   class _CnicFormatter extends TextInputFormatter {
     @override
     TextEditingValue formatEditUpdate(
@@ -416,24 +477,17 @@
     }
   }
 
-  // ─── Phone Formatter ──────────────────────────────────────────────────────────
   class _PhoneFormatter extends TextInputFormatter {
     @override
     TextEditingValue formatEditUpdate(
       TextEditingValue old,
       TextEditingValue next,
     ) {
-      // Extract only digits from the raw input
       String digits = next.text.replaceAll(RegExp(r'\D'), '');
-      // Remove leading '92' if user typed it (we always show +92)
       if (digits.startsWith('92')) digits = digits.substring(2);
-      // Remove leading '0' (habit: 03XX → 3XX)
       if (digits.startsWith('0')) digits = digits.substring(1);
-      // First digit must be 3 — discard anything else
       if (digits.isNotEmpty && digits[0] != '3') digits = '';
-      // Cap at 10 digits (excluding +92)
       if (digits.length > 10) digits = digits.substring(0, 10);
-      // Build formatted string: +92 followed by digits
       final text = '+92 $digits';
       return next.copyWith(
         text: text,
