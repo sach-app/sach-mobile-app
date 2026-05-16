@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 import 'theme.dart';
 import 'app_strings.dart';
 import 'app_nav.dart';
@@ -23,6 +25,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String? _selectedDistrict;
 
   bool _isLoading = false;
+  bool _isUploadingAvatar = false;
 
   // 15 Pakistan districts
   static const List<String> _districts = [
@@ -120,6 +123,69 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  void _showAvatarPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kBgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: kGold),
+                title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadAvatar(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: kGold),
+                title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadAvatar(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadAvatar(ImageSource source) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: source);
+    if (pickedFile == null) return;
+
+    if (mounted) setState(() => _isUploadingAvatar = true);
+
+    try {
+      final success = await ApiService.uploadProfilePicture(pickedFile.path);
+      if (mounted) {
+        if (success) {
+          final resp = await ApiService.get('/user/profile');
+          if (resp.statusCode == 200) {
+             UserProfileStore.instance.updateFromMap(jsonDecode(resp.body));
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile picture updated!'), backgroundColor: kGreen),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update picture: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingAvatar = false);
+    }
   }
 
   @override
@@ -286,27 +352,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildAvatarSection(dynamic profile) {
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [kGreen.withOpacity(0.55), kGreen],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+        GestureDetector(
+          onTap: _isUploadingAvatar ? null : _showAvatarPicker,
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [kGreen.withOpacity(0.55), kGreen],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(color: kGold.withOpacity(0.5), width: 2.5),
+                  boxShadow: [
+                    BoxShadow(color: kGreen.withOpacity(0.35), blurRadius: 20, spreadRadius: 2),
+                  ],
+                  image: (profile.avatarUrl != null && profile.avatarUrl.isNotEmpty)
+                      ? DecorationImage(
+                          image: NetworkImage(profile.avatarUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-                border: Border.all(color: kGold.withOpacity(0.5), width: 2.5),
-                boxShadow: [
-                  BoxShadow(color: kGreen.withOpacity(0.35), blurRadius: 20, spreadRadius: 2),
-                ],
+                child: _isUploadingAvatar 
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                    : (profile.avatarUrl == null || profile.avatarUrl.isEmpty)
+                        ? const Icon(Icons.person_rounded, color: Colors.white, size: 44)
+                        : null,
               ),
-              child: const Icon(Icons.person_rounded, color: Colors.white, size: 44),
-            ),
-          ],
+              if (!_isUploadingAvatar)
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: kBgCard,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: kGold,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 14),
+                  ),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: 14),
         // Identity-locked name

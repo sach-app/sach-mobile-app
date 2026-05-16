@@ -12,6 +12,8 @@ import 'app_strings.dart';
 import 'app_nav.dart';
 import 'sach_header.dart';
 import 'fir_detail_screen.dart';
+import 'dart:convert';
+import 'api_service.dart';
 
 class MyFirsScreen extends StatefulWidget {
   const MyFirsScreen({super.key});
@@ -29,6 +31,9 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
     super.initState();
     FirStore.instance.addListener(_onStoreUpdate);
     LocaleStore.instance.addListener(_onStoreUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FirStore.instance.fetchMyFirs();
+    });
   }
 
   @override
@@ -54,6 +59,82 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
   Future<void> _openFileFir() async {
     final result = await sachPush<FirItem>(context, const FileFirScreen());
     if (result != null) FirStore.instance.add(result);
+  }
+
+  Future<void> _openTrackingDialog() async {
+    final ctrl = TextEditingController();
+    bool isTracking = false;
+    String? errorMsg;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: kBgCard,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Track FIR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Enter the tracking number or ID of the FIR.', style: TextStyle(color: kTextSub, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: ctrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. TRK-12345',
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                      filled: true,
+                      fillColor: kInputBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      errorText: errorMsg,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isTracking ? null : () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: kTextSub)),
+                ),
+                ElevatedButton(
+                  onPressed: isTracking ? null : () async {
+                    if (ctrl.text.trim().isEmpty) return;
+                    setStateDialog(() { isTracking = true; errorMsg = null; });
+                    try {
+                      final response = await ApiService.get('/user/fir/track/${ctrl.text.trim()}');
+                      if (response.statusCode == 200) {
+                        final data = jsonDecode(response.body);
+                        final fir = FirItem.fromJson(data);
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          sachPush(this.context, FirDetailScreen(fir: fir));
+                        }
+                      } else {
+                        setStateDialog(() => errorMsg = 'FIR not found or invalid tracking number');
+                      }
+                    } catch (e) {
+                      setStateDialog(() => errorMsg = 'Network error');
+                    } finally {
+                      setStateDialog(() => isTracking = false);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kGreen,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: isTracking
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Track', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
   }
 
   @override
@@ -186,19 +267,48 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
                   },
                 ),
                 // 3-dots menu
-                buildAppMenu(context, 1),
+                buildAppMenu(context, 1, extraItems: [
+                  PopupMenuItem<String>(
+                    value: 'track_fir',
+                    onTap: () {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _openTrackingDialog();
+                      });
+                    },
+                    padding: EdgeInsets.zero,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.radar_rounded, color: kGold, size: 18),
+                          SizedBox(width: 12),
+                          Text(
+                            'Track FIR',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ]),
               ],
             ),
           ),
         ),
-        body: firs.isEmpty
-            ? _buildEmptyState()
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: firs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _MyFirCard(item: firs[i]),
-              ),
+        body: FirStore.instance.isLoading
+            ? const Center(child: CircularProgressIndicator(color: kGold))
+            : firs.isEmpty
+                ? _buildEmptyState()
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    itemCount: firs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) => _MyFirCard(item: firs[i]),
+                  ),
         floatingActionButton: FloatingActionButton(
           onPressed: _openFileFir,
           backgroundColor: kGreen,

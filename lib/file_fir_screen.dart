@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:image_picker/image_picker.dart';
 import 'theme.dart';
 import 'fir_model.dart';
 import 'app_nav.dart';
+import 'api_service.dart';
 
 // ─── Pakistani location data ──────────────────────────────────────────────────
 /// City → list of police-jurisdiction districts
@@ -145,7 +148,7 @@ class _FileFirScreenState extends State<FileFirScreen>
   final _descCtrl = TextEditingController();
 
   // ── Step 2: Evidence ──────────────────────────────────────────────────────
-  bool _evidenceAdded = false;
+  String? _evidencePath;
 
   @override
   void initState() {
@@ -228,59 +231,104 @@ class _FileFirScreenState extends State<FileFirScreen>
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
-  void _submitFir() {
-    final now = DateTime.now();
-    final rng = Random();
-    final firId = 'FIR-${now.year}-${(rng.nextInt(89999) + 10000)}';
+  bool _isSubmitting = false;
 
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final filedDate =
-        'Filed on ${months[now.month - 1]} ${now.day.toString().padLeft(2, '0')}, ${now.year}';
+  Future<void> _submitFir() async {
+    setState(() => _isSubmitting = true);
 
-    // Build a short title from category or description
-    String title = _category ?? _descCtrl.text;
+    String title = _category ?? 'Other Incident';
     if (title.length > 45) title = '${title.substring(0, 42)}…';
 
-    final fir = FirItem(
-      id: firId,
-      title: title,
-      date: filedDate,
-      status: 'Pending',
-      address: _addressCtrl.text.trim(),
-      city: _city ?? '',
-      district: _district ?? '',
-      description: _descCtrl.text.trim(),
-      incidentDate: _incidentDate != null
-          ? '${_incidentDate!.day}/${_incidentDate!.month}/${_incidentDate!.year}'
-          : '',
-      category: _category ?? '',
-    );
+    final String locationStr = [
+      _addressCtrl.text.trim(),
+      _district,
+      _city
+    ].where((e) => e != null && e.isNotEmpty).join(', ');
 
-    // Show success then pop with result
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _SubmitSuccessDialog(
-        firId: firId,
-        onDone: () {
-          Navigator.of(context).pop(); // close dialog
-          Navigator.of(context).pop(fir); // return to dashboard with new FIR
-        },
-      ),
-    );
+    String backendCategory = 'other';
+    switch (_category) {
+      case 'Theft / Robbery': backendCategory = 'robbery'; break;
+      case 'Cybercrime': backendCategory = 'cybercrime'; break;
+      case 'Fraud / Scam': backendCategory = 'fraud'; break;
+      case 'Assault / Violence': backendCategory = 'assault'; break;
+      case 'Missing Person': backendCategory = 'kidnapping'; break;
+      default: backendCategory = 'other';
+    }
+
+    final payload = <String, dynamic>{
+      'title': title,
+      'description': _descCtrl.text.trim(),
+      'category': backendCategory,
+      'priority': 'medium', // Default priority
+    };
+
+    if (_incidentDate != null) {
+      DateTime dt = _incidentDate!;
+      if (_incidentTime != null) {
+        dt = DateTime(dt.year, dt.month, dt.day, _incidentTime!.hour, _incidentTime!.minute);
+      }
+      payload['incident_date'] = dt.toUtc().toIso8601String();
+    }
+
+    if (locationStr.isNotEmpty) {
+      payload['incident_location'] = locationStr;
+    }
+
+    try {
+      final response = await ApiService.post('/user/fir', payload);
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        final firId = data['id']?.toString() ?? 'FIR-SUBMITTED';
+
+        if (_evidencePath != null) {
+          // Upload evidence using the newly created FIR ID
+          try {
+            await ApiService.uploadEvidence(firId, _evidencePath!);
+          } catch (e) {
+            // If evidence upload fails, the FIR is still created. We continue to success screen.
+          }
+        }
+
+        final fir = FirItem(
+          id: firId,
+          title: title,
+          date: 'Just now',
+          status: 'Pending',
+          address: _addressCtrl.text.trim(),
+          city: _city ?? '',
+          district: _district ?? '',
+          description: _descCtrl.text.trim(),
+          incidentDate: _incidentDate != null
+              ? '${_incidentDate!.day}/${_incidentDate!.month}/${_incidentDate!.year}'
+              : '',
+          category: _category ?? '',
+        );
+
+        // Show success then pop with result
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _SubmitSuccessDialog(
+            firId: firId,
+            onDone: () {
+              Navigator.of(context).pop(); // close dialog
+              Navigator.of(context).pop(fir); // return to dashboard with new FIR
+            },
+          ),
+        );
+      } else {
+        final errorDetail = jsonDecode(response.body)['detail'];
+        final errorMsg = errorDetail is List ? errorDetail[0]['msg'] : errorDetail.toString();
+        _showSnack('Error: $errorMsg');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Network error: $e');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   // ── Date/Time helpers ─────────────────────────────────────────────────────
@@ -772,6 +820,55 @@ class _FileFirScreenState extends State<FileFirScreen>
   }
 
   // ── Step 2: Evidence ──────────────────────────────────────────────────────
+  void _showEvidencePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kBgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: kGold),
+                title: const Text('Take Photo with Camera', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final picker = ImagePicker();
+                  final pickedFile = await picker.pickImage(source: ImageSource.camera);
+                  if (pickedFile != null) setState(() => _evidencePath = pickedFile.path);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: kGold),
+                title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final picker = ImagePicker();
+                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null) setState(() => _evidencePath = pickedFile.path);
+                },
+              ),
+              if (_evidencePath != null) ...[
+                const Divider(color: kDivider),
+                ListTile(
+                  leading: const Icon(Icons.delete_rounded, color: Colors.redAccent),
+                  title: const Text('Remove Evidence', style: TextStyle(color: Colors.redAccent)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() => _evidencePath = null);
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildEvidenceStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,42 +890,42 @@ class _FileFirScreenState extends State<FileFirScreen>
 
         // Upload area
         GestureDetector(
-          onTap: () => setState(() => _evidenceAdded = !_evidenceAdded),
+          onTap: _showEvidencePicker,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             width: double.infinity,
             height: 200,
             decoration: BoxDecoration(
-              color: _evidenceAdded ? kGreen.withOpacity(0.07) : kInputBg,
+              color: _evidencePath != null ? kGreen.withOpacity(0.07) : kInputBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: CustomPaint(
               painter: _DashedBorderPainter(
-                color: _evidenceAdded ? kGreen : kDivider,
+                color: _evidencePath != null ? kGreen : kDivider,
               ),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      _evidenceAdded
+                      _evidencePath != null
                           ? Icons.check_circle_rounded
                           : Icons.add_photo_alternate_rounded,
-                      color: _evidenceAdded ? kGold : kTextSub,
+                      color: _evidencePath != null ? kGold : kTextSub,
                       size: 52,
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _evidenceAdded
-                          ? 'Evidence Added ✓'
+                      _evidencePath != null
+                          ? 'Evidence Attached ✓'
                           : 'Tap to upload photo/video evidence',
                       style: TextStyle(
-                        color: _evidenceAdded ? kGold : kTextSub,
+                        color: _evidencePath != null ? kGold : kTextSub,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (!_evidenceAdded) ...[
+                    if (_evidencePath == null) ...[
                       const SizedBox(height: 4),
                       Text(
                         '(Max 25MB)',
@@ -898,30 +995,41 @@ class _FileFirScreenState extends State<FileFirScreen>
                 ),
               ],
             ),
-            child: ElevatedButton.icon(
-              onPressed: _goNext,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 17),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: Icon(
-                isLast ? Icons.shield_rounded : Icons.arrow_forward_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-              label: Text(
-                labels[_step],
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
-            ),
+            child: _isSubmitting
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 17),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(color: kGold, strokeWidth: 2.5),
+                      ),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _goNext,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 17),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: Icon(
+                      isLast ? Icons.shield_rounded : Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    label: Text(
+                      labels[_step],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
           ),
           if (isLast) ...[
             const SizedBox(height: 10),

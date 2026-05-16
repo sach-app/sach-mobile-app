@@ -210,7 +210,7 @@
           ),
           const SizedBox(height: 2),
           Text(
-            'Register securely with government verification',
+            'Register securely via SACH Network',
             style: TextStyle(color: kTextSub, fontSize: 13),
           ),
           Text(

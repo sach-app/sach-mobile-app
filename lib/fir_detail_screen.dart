@@ -1,12 +1,148 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'api_service.dart';
+import 'fir_store.dart';
 import 'theme.dart';
 import 'fir_model.dart';
 import 'app_nav.dart';
 
-class FirDetailScreen extends StatelessWidget {
+class FirDetailScreen extends StatefulWidget {
   final FirItem fir;
   const FirDetailScreen({super.key, required this.fir});
+
+  @override
+  State<FirDetailScreen> createState() => _FirDetailScreenState();
+}
+
+class _FirDetailScreenState extends State<FirDetailScreen> {
+  late FirItem _currentFir;
+  bool _isUploadingEvidence = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentFir = widget.fir;
+  }
+
+  Future<void> _refreshFir() async {
+    try {
+      final response = await ApiService.get('/user/fir/${_currentFir.id}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final freshFir = FirItem.fromJson(data);
+        if (mounted) {
+          setState(() {
+            _currentFir = freshFir;
+          });
+          FirStore.instance.updateSingleFir(freshFir);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to refresh complaint data.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Network error: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showEvidencePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kBgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: kGold),
+                title: const Text('Take Photo with Camera', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadEvidence(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: kGold),
+                title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadEvidence(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadEvidence(ImageSource source) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: source);
+    if (pickedFile == null) return;
+
+    if (mounted) {
+      setState(() => _isUploadingEvidence = true);
+    }
+
+    try {
+      final success = await ApiService.uploadEvidence(_currentFir.id, pickedFile.path);
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Evidence submitted successfully'),
+              backgroundColor: kGreen,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          _refreshFir();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload evidence'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading evidence: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingEvidence = false);
+      }
+    }
+  }
 
   // ── Status pipeline ────────────────────────────────────────────────────────
   static const _pipeline = [
@@ -26,21 +162,28 @@ class FirDetailScreen extends StatelessWidget {
   ];
 
   int get _currentStep {
-    final idx = _pipeline.indexOf(fir.status);
-    return idx < 0 ? 0 : idx;
+    final statusMap = {
+      'pending': 0,
+      'under review': 1,
+      'investigating': 2,
+      'resolved': 3,
+      'closed': 4,
+    };
+    final idx = statusMap[_currentFir.status.toLowerCase()];
+    return idx ?? 0;
   }
 
   Color get _statusColor {
-    switch (fir.status) {
-      case 'Pending':
+    switch (_currentFir.status.toLowerCase()) {
+      case 'pending':
         return const Color(0xFFF59E0B);
-      case 'Investigating':
+      case 'investigating':
         return const Color(0xFF3B82F6);
-      case 'Resolved':
+      case 'resolved':
         return kGreen;
-      case 'Closed':
+      case 'closed':
         return kTextSub;
-      case 'Under Review':
+      case 'under review':
         return const Color(0xFF8B5CF6);
       default:
         return kTextSub;
@@ -56,7 +199,7 @@ class FirDetailScreen extends StatelessWidget {
       'DSP Khalid Mehmood',
       'Inspector Nadia Hussain',
     ];
-    final hash = fir.id.hashCode.abs() % officers.length;
+    final hash = _currentFir.id.hashCode.abs() % officers.length;
     return officers[hash];
   }
 
@@ -72,23 +215,28 @@ class FirDetailScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: kBgDeep,
       appBar: _buildAppBar(context),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
-        children: [
-          _buildStatusTimeline(),
-          const SizedBox(height: 20),
-          _buildInfoCard(context),
-          const SizedBox(height: 16),
-          if (fir.description.isNotEmpty) ...[
-            _buildDescriptionCard(),
+      body: RefreshIndicator(
+        color: kGold,
+        onRefresh: _refreshFir,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
+          children: [
+            _buildStatusTimeline(),
+            const SizedBox(height: 20),
+            _buildInfoCard(context),
             const SizedBox(height: 16),
+            if (_currentFir.description.isNotEmpty) ...[
+              _buildDescriptionCard(),
+              const SizedBox(height: 16),
+            ],
+            _buildOfficerCard(context),
+            const SizedBox(height: 16),
+            _buildEvidenceCard(context),
+            const SizedBox(height: 16),
+            _buildMetaCard(),
           ],
-          _buildOfficerCard(context),
-          const SizedBox(height: 16),
-          _buildMetaCard(),
-          const SizedBox(height: 20),
-          _buildBlockchainCard(context),
-        ],
+        ),
       ),
     );
   }
@@ -109,16 +257,16 @@ class FirDetailScreen extends StatelessWidget {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Case Details',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
               fontSize: 16,
             ),
           ),
           Text(
-            fir.id,
+            _currentFir.id,
             style: const TextStyle(
               color: kGold,
               fontSize: 11,
@@ -142,7 +290,7 @@ class FirDetailScreen extends StatelessWidget {
         border: Border.all(color: kDivider, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -181,7 +329,7 @@ class FirDetailScreen extends StatelessWidget {
                       ? kGreen
                       : active
                       ? _statusColor
-                      : kDivider.withValues(alpha: 0.3),
+                      : kDivider.withOpacity(0.3),
                   border: Border.all(
                     color: done
                         ? kGreen
@@ -193,8 +341,8 @@ class FirDetailScreen extends StatelessWidget {
                   boxShadow: (done || active)
                       ? [
                           BoxShadow(
-                            color: (done ? kGreen : _statusColor).withValues(
-                              alpha: 0.3,
+                            color: (done ? kGreen : _statusColor).withOpacity(
+                              0.3,
                             ),
                             blurRadius: 8,
                           ),
@@ -250,47 +398,51 @@ class FirDetailScreen extends StatelessWidget {
   // ── Info Card ──────────────────────────────────────────────────────────────
   Widget _buildInfoCard(BuildContext context) {
     final location = [
-      fir.address,
-      fir.city,
-      fir.district,
+      _currentFir.address,
+      _currentFir.city,
+      _currentFir.district,
     ].where((s) => s.isNotEmpty).join(', ');
 
     return _SectionCard(
       children: [
-        if (fir.category.isNotEmpty) ...[
+        if (_currentFir.category.isNotEmpty) ...[
           _DetailRow(
             icon: Icons.category_rounded,
             label: 'Incident Type',
-            value: fir.category,
+            value: _currentFir.category,
             highlight: true,
           ),
-          _Divider(),
+          const _Divider(),
         ],
-        _DetailRow(icon: Icons.tag_rounded, label: 'Case ID', value: fir.id),
-        _Divider(),
+        _DetailRow(icon: Icons.tag_rounded, label: 'Case ID', value: _currentFir.id),
+        if (_currentFir.trackingNumber != null && _currentFir.trackingNumber!.isNotEmpty) ...[
+          const _Divider(),
+          _DetailRow(icon: Icons.radar_rounded, label: 'Tracking Number', value: _currentFir.trackingNumber!, highlight: true),
+        ],
+        const _Divider(),
         _DetailRow(
           icon: Icons.calendar_today_rounded,
           label: 'Date Filed',
-          value: fir.date,
+          value: _currentFir.date,
         ),
-        if (fir.incidentDate.isNotEmpty) ...[
-          _Divider(),
+        if (_currentFir.incidentDate.isNotEmpty) ...[
+          const _Divider(),
           _DetailRow(
             icon: Icons.event_rounded,
             label: 'Incident Date',
-            value: fir.incidentDate,
+            value: _currentFir.incidentDate,
           ),
         ],
         if (location.isNotEmpty) ...[
-          _Divider(),
+          const _Divider(),
           _DetailRow(
             icon: Icons.location_on_rounded,
             label: 'Location',
             value: location,
           ),
         ],
-        _Divider(),
-        _StatusRow(status: fir.status, color: _statusColor),
+        const _Divider(),
+        _StatusRow(status: _currentFir.status, color: _statusColor),
       ],
     );
   }
@@ -304,11 +456,11 @@ class FirDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   Icon(Icons.description_rounded, color: kGold, size: 16),
-                  const SizedBox(width: 8),
-                  const Text(
+                  SizedBox(width: 8),
+                  Text(
                     'Description',
                     style: TextStyle(
                       color: kTextSub,
@@ -321,7 +473,7 @@ class FirDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                fir.description,
+                _currentFir.description,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
@@ -338,7 +490,7 @@ class FirDetailScreen extends StatelessWidget {
 
   // ── Officer Card ───────────────────────────────────────────────────────────
   Widget _buildOfficerCard(BuildContext context) {
-    final isAssigned = fir.status != 'Pending';
+    final isAssigned = _currentFir.status.toLowerCase() != 'pending';
     return _SectionCard(
       children: [
         Padding(
@@ -346,10 +498,10 @@ class FirDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   Icon(Icons.person_pin_rounded, color: kGold, size: 16),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Assigned Officer',
                     style: TextStyle(
@@ -373,14 +525,14 @@ class FirDetailScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: kDivider),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
                       Icon(
                         Icons.hourglass_top_rounded,
                         color: kTextSub,
                         size: 16,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Text(
                         'Awaiting assignment…',
                         style: TextStyle(color: kTextSub, fontSize: 13),
@@ -402,7 +554,7 @@ class FirDetailScreen extends StatelessWidget {
                           end: Alignment.bottomRight,
                         ),
                         border: Border.all(
-                          color: kGold.withValues(alpha: 0.3),
+                          color: kGold.withOpacity(0.3),
                           width: 2,
                         ),
                       ),
@@ -428,7 +580,7 @@ class FirDetailScreen extends StatelessWidget {
                           const SizedBox(height: 3),
                           Text(
                             _officerRank,
-                            style: TextStyle(color: kTextSub, fontSize: 12),
+                            style: const TextStyle(color: kTextSub, fontSize: 12),
                           ),
                         ],
                       ),
@@ -480,9 +632,73 @@ class FirDetailScreen extends StatelessWidget {
     );
   }
 
+  // ── Evidence Card ──────────────────────────────────────────────────────────
+  Widget _buildEvidenceCard(BuildContext context) {
+    return _SectionCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.attachment_rounded, color: kGold, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'Supporting Evidence',
+                    style: TextStyle(
+                      color: kTextSub,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isUploadingEvidence ? null : _showEvidencePicker,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isUploadingEvidence
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: kBgDeep, strokeWidth: 2.5),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.cloud_upload_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Submit Evidence',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── Meta Card ──────────────────────────────────────────────────────────────
   Widget _buildMetaCard() {
-    return _SectionCard(
+    return const _SectionCard(
       children: [
         _DetailRow(
           icon: Icons.security_rounded,
@@ -505,78 +721,6 @@ class FirDetailScreen extends StatelessWidget {
       ],
     );
   }
-
-  // ── Blockchain Card ────────────────────────────────────────────────────────
-  Widget _buildBlockchainCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A1F12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kGreen.withValues(alpha: 0.2), width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.hub_rounded, color: kGreen, size: 15),
-              const SizedBox(width: 7),
-              const Text(
-                'Blockchain Hash Verification ID',
-                style: TextStyle(
-                  color: kGreen,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: fir.blockchainHash));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Hash copied to clipboard'),
-                      backgroundColor: kBgCard,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: Icon(Icons.copy_rounded, color: kGreen, size: 14),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SelectableText(
-            fir.blockchainHash,
-            style: const TextStyle(
-              color: Color(0xFF7FFFB8),
-              fontSize: 11,
-              fontFamily: 'monospace',
-              height: 1.5,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: kGreen, size: 12),
-              const SizedBox(width: 5),
-              const Text(
-                'Immutable record on SACH distributed ledger',
-                style: TextStyle(color: kTextSub, fontSize: 10),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -594,7 +738,7 @@ class _SectionCard extends StatelessWidget {
         border: Border.all(color: kDivider, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
+            color: Colors.black.withOpacity(0.25),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -606,9 +750,10 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _Divider extends StatelessWidget {
+  const _Divider();
   @override
   Widget build(BuildContext context) =>
-      Divider(color: kDivider, height: 1, indent: 16, endIndent: 16);
+      const Divider(color: kDivider, height: 1, indent: 16, endIndent: 16);
 }
 
 class _DetailRow extends StatelessWidget {
@@ -639,7 +784,7 @@ class _DetailRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: kTextSub,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -651,7 +796,7 @@ class _DetailRow extends StatelessWidget {
                   style: TextStyle(
                     color: highlight
                         ? Colors.white
-                        : Colors.white.withValues(alpha: 0.9),
+                        : Colors.white.withOpacity(0.9),
                     fontSize: 14,
                     fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
                   ),
@@ -676,12 +821,12 @@ class _StatusRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Icon(Icons.flag_rounded, color: kGold, size: 16),
+          const Icon(Icons.flag_rounded, color: kGold, size: 16),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Current Status',
                 style: TextStyle(
                   color: kTextSub,
@@ -696,9 +841,9 @@ class _StatusRow extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: color.withValues(alpha: 0.4)),
+                  border: Border.all(color: color.withOpacity(0.4)),
                 ),
                 child: Text(
                   status,

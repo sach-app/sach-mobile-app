@@ -23,6 +23,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
     super.initState();
     AlertStore.instance.addListener(_rebuild);
     LocaleStore.instance.addListener(_rebuild);
+    // Fetch notifications automatically when screen loads
+    AlertStore.instance.fetchNotifications();
   }
 
   @override
@@ -50,22 +52,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
             textDirection: TextDirection.ltr,
             child: SachHeader(
               title: S.alertsTitle,
-              subtitle: store.unreadCount > 0
-                  ? '${store.unreadCount} ${S.unread}'
-                  : null,
               actions: [
-                if (store.unreadCount > 0)
-                  TextButton(
-                    onPressed: () => store.markAllRead(),
-                    child: Text(
-                      S.markAllRead,
-                      style: const TextStyle(
-                        color: kGold,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
                 buildAppMenu(
                   context,
                   2,
@@ -89,21 +76,80 @@ class _AlertsScreenState extends State<AlertsScreen> {
             ),
           ),
         ),
-        body: store.alerts.isEmpty
-            ? _buildEmptyState()
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: store.alerts.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, i) => _AlertCard(
-                  item: store.alerts[i],
-                  isUrdu: isUrdu,
-                  onTap: () {
-                    store.markRead(store.alerts[i]);
-                    _showAlertDetail(context, store.alerts[i], isUrdu);
-                  },
+        body: Column(
+          children: [
+            if (store.unreadCount > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: kGold,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${store.unreadCount} ${S.unread}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        backgroundColor: kGold.withOpacity(0.12),
+                        foregroundColor: kGold,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(color: kGold.withOpacity(0.3)),
+                        ),
+                      ),
+                      onPressed: () => store.markAllRead(),
+                      icon: const Icon(Icons.done_all_rounded, size: 16),
+                      label: Text(
+                        S.markAllRead,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            Expanded(
+              child: store.isLoading
+                  ? const Center(child: CircularProgressIndicator(color: kGold))
+                  : store.alerts.isEmpty
+                      ? _buildEmptyState()
+                      : RefreshIndicator(
+                          color: kGold,
+                          onRefresh: store.fetchNotifications,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                            itemCount: store.alerts.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, i) => _AlertCard(
+                              item: store.alerts[i],
+                              isUrdu: isUrdu,
+                              onTap: () {
+                                store.markRead(store.alerts[i]);
+                                _showAlertDetail(context, store.alerts[i], isUrdu);
+                              },
+                            ),
+                          ),
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -207,12 +253,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   children: [
                     const Icon(Icons.folder_outlined, color: kGold, size: 13),
                     const SizedBox(width: 6),
-                    Text(
-                      alert.subtitle(isUrdu),
-                      style: const TextStyle(
-                        color: kGold,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        alert.subtitle(isUrdu),
+                        style: const TextStyle(
+                          color: kGold,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],

@@ -132,7 +132,7 @@ class _NotificationSettingsScreenState
                 _divider(),
                 _toggleTile(
                   icon: Icons.campaign_rounded,
-                  title: 'Government Alerts',
+                  title: 'Critical Alerts',
                   subtitle: 'Emergency and public safety broadcasts',
                   value: _govtAlerts,
                   onChanged: (v) => setState(() => _govtAlerts = v),
@@ -238,7 +238,7 @@ class _NotificationSettingsScreenState
               // Footer
               Center(
                 child: Text(
-                  'Emergency government alerts cannot be silenced\nand will always be delivered.',
+                  'Emergency critical alerts cannot be silenced\nand will always be delivered.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: kTextSub, fontSize: 11, height: 1.5),
                 ),

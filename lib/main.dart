@@ -50,7 +50,7 @@ class SachApp extends StatelessWidget {
 const Color kBgDeep = Color(0xFF050F08);
 const Color kBgCard = Color(0xFF0C1F10);
 const Color kCyan = Color(0xFF01763A); // Pakistan flag green
-const Color kPurple = Color(0xFFD4AF37); // Government gold
+const Color kPurple = Color(0xFFD4AF37); // SACH gold
 const Color kAccentEnd = Color(0xFF4CAF50); // Muted emerald
 const Color kDivider = Color(0xFF132B18);
 const Color kTextSub = Color(0xFF6B8C6E);

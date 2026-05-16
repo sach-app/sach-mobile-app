@@ -3,6 +3,7 @@ import 'dart:math';
 // Shared FIR data model used by dashboard and file_fir_screen
 class FirItem {
   final String id;
+  final String? trackingNumber;
   final String title;
   final String date;
   final String status;
@@ -11,11 +12,12 @@ class FirItem {
   final String district;
   final String description;
   final String incidentDate;
-  final String category;
-  final String blockchainHash;
+  final String category;  final String ledgerHash;
+
 
   FirItem({
     required this.id,
+    this.trackingNumber,
     required this.title,
     required this.date,
     this.status = 'Pending',
@@ -25,8 +27,24 @@ class FirItem {
     this.description = '',
     this.incidentDate = '',
     this.category = '',
-    String? blockchainHash,
-  }) : blockchainHash = blockchainHash ?? _genHash();
+    String? ledgerHash,
+  }) : ledgerHash = ledgerHash ?? _genHash();
+
+  factory FirItem.fromJson(Map<String, dynamic> json) {
+    return FirItem(
+      id: json['id'] != null ? json['id'].toString() : '',
+      trackingNumber: json['tracking_number']?.toString(),
+      title: json['title']?.toString() ?? '',
+      date: json['created_at']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'Pending',
+      address: json['incident_location']?.toString() ?? '',
+      city: '',
+      district: '',
+      description: json['description']?.toString() ?? '',
+      incidentDate: json['incident_date']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+    );
+  }
 
   static String _genHash() {
     const chars = '0123456789abcdef';
