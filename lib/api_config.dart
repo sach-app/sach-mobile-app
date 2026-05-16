@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class ApiConfig {
-  static const String baseUrl = 'https://sachbackend.live/api/v1';
+  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? '';
 }
