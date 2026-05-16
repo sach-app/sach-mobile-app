@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'app_nav.dart';
+import 'change_password_dialog.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -51,6 +52,13 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               _sectionHeader('Authentication & Access', Icons.security_rounded),
               const SizedBox(height: 10),
               _card([
+                _navTile(
+                  icon: Icons.password_rounded,
+                  title: 'Change Password',
+                  subtitle: 'Update your account password',
+                  onTap: () => showChangePasswordDialog(context),
+                ),
+                _divider(),
                 _toggleTile(
                   icon: Icons.verified_user_rounded,
                   title: 'Two-Factor Authentication',

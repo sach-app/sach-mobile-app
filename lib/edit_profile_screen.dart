@@ -4,6 +4,8 @@ import 'theme.dart';
 import 'app_strings.dart';
 import 'app_nav.dart';
 import 'user_profile_store.dart';
+import 'change_password_dialog.dart';
+import 'api_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -19,6 +21,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _addressCtrl;
   late final TextEditingController _cityCtrl;
   late String? _selectedDistrict;
+
+  bool _isLoading = false;
 
   // 15 Pakistan districts
   static const List<String> _districts = [
@@ -59,37 +63,63 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  void _saveChanges() {
+  Future<void> _saveChanges() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    UserProfileStore.instance.saveEdits(
-      altPhone: _altPhoneCtrl.text,
-      email: _emailCtrl.text,
-      address: _addressCtrl.text,
-      district: _selectedDistrict ?? '',
-      city: _cityCtrl.text,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: kGold, size: 18),
-            const SizedBox(width: 10),
-            const Text(
-              'Profile updated successfully',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await ApiService.put('/user/profile', {
+        'full_name': UserProfileStore.instance.profile.fullName,
+        'phone': _altPhoneCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'address': _addressCtrl.text.trim(),
+      });
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        UserProfileStore.instance.saveEdits(
+          altPhone: _altPhoneCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
+          address: _addressCtrl.text.trim(),
+          district: _selectedDistrict ?? '',
+          city: _cityCtrl.text.trim(),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: kGold, size: 18),
+                const SizedBox(width: 10),
+                const Text(
+                  'Profile updated successfully',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-          ],
-        ),
-        backgroundColor: kBgCard,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-    Navigator.of(context).pop();
+            backgroundColor: kBgCard,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        Navigator.of(context).pop();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update profile'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error. Please try again.'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   }
 
   @override
@@ -145,28 +175,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: sachInputDecoration(
                     hint: S.epPhoneHint,
-                    prefixIcon: Container(
-                      alignment: Alignment.center,
-                      width: 60,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '+92',
-                            style: TextStyle(
-                              color: kGold,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 16,
-                            margin: const EdgeInsets.only(left: 8),
-                            color: kDivider,
-                          ),
-                        ],
-                      ),
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Icon(Icons.phone_outlined, color: kGold, size: 18),
                     ),
                   ),
                   validator: (v) {
@@ -231,12 +242,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 _buildLockedNotice(),
                 const SizedBox(height: 28),
 
-                // ── Save button ──────────────────────────────────────────────
-                SachGradientButton(
-                  label: S.epSaveChanges,
-                  icon: Icons.save_rounded,
-                  onPressed: _saveChanges,
+                // ── Change Password button ──────────────────────────────────
+                SachOutlineButton(
+                  label: 'Change Password',
+                  icon: Icons.lock_reset_rounded,
+                  onPressed: () => showChangePasswordDialog(context),
                 ),
+                const SizedBox(height: 16),
+
+                // ── Save button ──────────────────────────────────────────────
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: kGold))
+                    : SachGradientButton(
+                        label: S.epSaveChanges,
+                        icon: Icons.save_rounded,
+                        onPressed: _saveChanges,
+                      ),
                 const SizedBox(height: 14),
 
                 // ── Cancel ───────────────────────────────────────────────────
@@ -280,38 +301,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 border: Border.all(color: kGold.withOpacity(0.5), width: 2.5),
                 boxShadow: [
-                  BoxShadow(
-                    color: kGreen.withOpacity(0.35),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
+                  BoxShadow(color: kGreen.withOpacity(0.35), blurRadius: 20, spreadRadius: 2),
                 ],
               ),
-              child: const Icon(
-                Icons.person_rounded,
-                color: Colors.white,
-                size: 44,
-              ),
-            ),
-            GestureDetector(
-              onTap: () {},
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: kGold,
-                  border: Border.all(color: kBgDeep, width: 2.5),
-                  boxShadow: [
-                    BoxShadow(color: kGold.withOpacity(0.4), blurRadius: 8),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.camera_alt_rounded,
-                  color: Colors.white,
-                  size: 14,
-                ),
-              ),
+              child: const Icon(Icons.person_rounded, color: Colors.white, size: 44),
             ),
           ],
         ),

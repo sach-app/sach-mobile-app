@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 /// Mutable user profile — all editable fields live here.
 /// Name and CNIC are locked (identity-verified) and cannot be changed.
 class UserProfile {
-  // Identity-locked (read-only in the UI)
-  final String fullName;
-  final String cnic;
+  String fullName;
+  String cnic;
 
   // Editable fields
   String altPhone;
@@ -13,15 +12,17 @@ class UserProfile {
   String address;
   String district;
   String city;
+  String avatarUrl;
 
   UserProfile({
-    this.fullName = 'Muhammad Ahmed Khan',
-    this.cnic = '42101-1234567-8',
+    this.fullName = '',
+    this.cnic = '',
     this.altPhone = '',
     this.email = '',
     this.address = '',
     this.district = '',
     this.city = '',
+    this.avatarUrl = '',
   });
 }
 
@@ -45,6 +46,17 @@ class UserProfileStore extends ChangeNotifier {
       ..address = address.trim()
       ..district = district
       ..city = city.trim();
+    notifyListeners();
+  }
+
+  void updateFromMap(Map<String, dynamic> data) {
+    if (data['full_name'] != null) profile.fullName = data['full_name'];
+    if (data['cnic'] != null) profile.cnic = data['cnic'];
+    if (data['phone'] != null) profile.altPhone = data['phone'];
+    if (data['email'] != null) profile.email = data['email'];
+    if (data['address'] != null) profile.address = data['address'];
+    if (data['avatar_url'] != null) profile.avatarUrl = data['avatar_url'];
+    if (data['profile_picture'] != null) profile.avatarUrl = data['profile_picture'];
     notifyListeners();
   }
 }

@@ -1,6 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'api_config.dart';
 import 'theme.dart';
+import 'app_nav.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +20,10 @@ class _LoginScreenState extends State<LoginScreen>
   final _formKey = GlobalKey<FormState>();
   final _cnicController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
   bool _showPassword = false;
+  bool _isLoading = false;
+  bool _isLoadingOtp = false;
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fade;
 
@@ -37,9 +46,151 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/user/login'),
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        body: {
+          'username': _cnicController.text.trim(),
+          'password': _passwordController.text,
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await _storage.write(key: 'access_token', value: data['access_token']);
+        await _storage.write(key: 'refresh_token', value: data['refresh_token']);
+        appTabNotifier.value = 0;
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+      } else {
+        final data = jsonDecode(response.body);
+        final errorDetail = data['detail'] ?? 'Login failed';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorDetail.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Network error. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _requestOtp() async {
+    final cnic = _cnicController.text.trim();
+    if (cnic.isEmpty || cnic.replaceAll('-', '').length != 13) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid CNIC first'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() { _isLoadingOtp = true; });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/user/login/otp/request'),
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode({'cnic': cnic}),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        showOtpSheet(
+          context,
+          cnic,
+          onVerify: (otp) => _verifyOtp(cnic, otp),
+          onResend: () => _resendOtp(cnic),
+        );
+      } else {
+        final data = jsonDecode(response.body);
+        final detail = data['detail'] ?? 'Failed to request OTP';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(detail.toString()), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error. Please try again.'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() { _isLoadingOtp = false; });
+    }
+  }
+
+  Future<void> _resendOtp(String cnic) async {
+    try {
+      await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/user/login/otp/request'),
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode({'cnic': cnic}),
+      );
+    } catch (e) {
+      // Handle silently
+    }
+  }
+
+  Future<bool> _verifyOtp(String cnic, String otp) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/user/login/otp/verify'),
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode({'cnic': cnic, 'otp': otp}),
+      );
+
+      if (!mounted) return false;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await _storage.write(key: 'access_token', value: data['access_token']);
+        await _storage.write(key: 'refresh_token', value: data['refresh_token']);
+        appTabNotifier.value = 0;
+        Future.delayed(const Duration(milliseconds: 1200), () {
+          if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+        });
+        return true;
+      } else {
+        final data = jsonDecode(response.body);
+        final detail = data['detail'] ?? 'Invalid OTP';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(detail.toString()), backgroundColor: Colors.red),
+        );
+        return false;
+      }
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Network error.'), backgroundColor: Colors.red),
+      );
+      return false;
     }
   }
 
@@ -59,10 +210,10 @@ class _LoginScreenState extends State<LoginScreen>
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Image.asset(
-            'assets/images/sach_logo.png',
-            height: 48,
-            fit: BoxFit.contain,
-          ),
+          'assets/images/sach_logo.png',
+          height: 48,
+          fit: BoxFit.contain,
+        ),
       ),
       body: Stack(
         children: [
@@ -250,7 +401,11 @@ class _LoginScreenState extends State<LoginScreen>
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                );
+              },
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -268,10 +423,14 @@ class _LoginScreenState extends State<LoginScreen>
           const SizedBox(height: 20),
 
           // Primary CTA — glowing
-          SachGradientButton(
-            label: 'Authenticate & Sign In',
-            onPressed: _submit,
-          ),
+          _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: kGold),
+                )
+              : SachGradientButton(
+                  label: 'Authenticate & Sign In',
+                  onPressed: _submit,
+                ),
         ],
       ),
     );
@@ -282,11 +441,13 @@ class _LoginScreenState extends State<LoginScreen>
       children: [
         _dividerRow(),
         const SizedBox(height: 16),
-        SachOutlineButton(
-          label: 'Login via SMS OTP',
-          icon: Icons.smartphone_rounded,
-          onPressed: () => showOtpSheet(context),
-        ),
+        _isLoadingOtp
+            ? const Center(child: CircularProgressIndicator(color: kGold))
+            : SachOutlineButton(
+                label: 'Login via Email OTP',
+                icon: Icons.email_rounded,
+                onPressed: _requestOtp,
+              ),
       ],
     );
   }

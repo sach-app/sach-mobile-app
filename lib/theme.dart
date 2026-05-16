@@ -266,20 +266,33 @@ class SachFooterLinks extends StatelessWidget {
 
 
 // ─── SMS OTP Sheet ────────────────────────────────────────────────────────────
-void showOtpSheet(BuildContext context) {
+void showOtpSheet(
+  BuildContext context,
+  String cnic, {
+  required Future<bool> Function(String) onVerify,
+  required Future<void> Function() onResend,
+}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-      child: const _OtpSheet(),
+      child: _OtpSheet(cnic: cnic, onVerify: onVerify, onResend: onResend),
     ),
   );
 }
 
 class _OtpSheet extends StatefulWidget {
-  const _OtpSheet();
+  final String cnic;
+  final Future<bool> Function(String) onVerify;
+  final Future<void> Function() onResend;
+
+  const _OtpSheet({
+    required this.cnic,
+    required this.onVerify,
+    required this.onResend,
+  });
   @override
   State<_OtpSheet> createState() => _OtpSheetState();
 }
@@ -292,6 +305,7 @@ class _OtpSheetState extends State<_OtpSheet> {
   final List<FocusNode> _nodes = List.generate(6, (_) => FocusNode());
   bool _verified = false;
   int _resendSeconds = 30;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -329,11 +343,27 @@ class _OtpSheetState extends State<_OtpSheet> {
     }
   }
 
-  void _verify() {
-    setState(() => _verified = true);
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted) Navigator.of(context).pop();
-    });
+  void _verify() async {
+    final otp = _ctrs.map((c) => c.text).join();
+    if (otp.length < 6) return;
+
+    setState(() => _isLoading = true);
+    final success = await widget.onVerify(otp);
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+    if (success) {
+      setState(() => _verified = true);
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) Navigator.of(context).pop();
+      });
+    }
+  }
+
+  void _resend() async {
+    setState(() => _resendSeconds = 30);
+    await widget.onResend();
+    _startResendTimer();
   }
 
   @override
@@ -410,7 +440,9 @@ class _OtpSheetState extends State<_OtpSheet> {
             const SizedBox(height: 24),
 
             // Verify button
-            SachGradientButton(label: 'Verify OTP', onPressed: _verify),
+            _isLoading
+                ? const Center(child: CircularProgressIndicator(color: kGold))
+                : SachGradientButton(label: 'Verify OTP', onPressed: _verify),
             const SizedBox(height: 16),
 
             // Resend
@@ -427,10 +459,7 @@ class _OtpSheetState extends State<_OtpSheet> {
                         style: TextStyle(color: kTextSub, fontSize: 13),
                       )
                     : GestureDetector(
-                        onTap: () {
-                          setState(() => _resendSeconds = 30);
-                          _startResendTimer();
-                        },
+                        onTap: _resend,
                         child: Text(
                           'Resend OTP',
                           style: TextStyle(

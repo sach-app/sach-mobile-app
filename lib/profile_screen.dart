@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'sach_route.dart';
 import 'app_nav.dart';
+import 'edit_profile_screen.dart';
 import 'app_strings.dart';
 import 'user_profile_store.dart';
 import 'privacy_settings_screen.dart';
 import 'notification_settings_screen.dart';
+import 'change_password_dialog.dart';
 import 'locale_store.dart';
 import 'sach_header.dart';
 
@@ -98,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _InfoRow(
                     icon: Icons.phone_rounded,
                     label: 'Alternate Phone',
-                    value: '+92 ${p.altPhone}',
+                    value: _formatPhone(p.altPhone),
                   )
                 else
                   _InfoRow(
@@ -142,6 +144,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildSectionHeader(S.accountSettings),
               const SizedBox(height: 12),
               _buildSettingsTile(
+                icon: Icons.password_rounded,
+                label: 'Change Password',
+                onTap: () => showChangePasswordDialog(context),
+              ),
+              const SizedBox(height: 8),
+              _buildSettingsTile(
                 icon: Icons.lock_outline_rounded,
                 label: S.privacySettings,
                 onTap: () => sachPush(context, const PrivacySettingsScreen()),
@@ -169,6 +177,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  String _formatPhone(String raw) {
+    String digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('92')) digits = digits.substring(2);
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    if (digits.isEmpty) return '—';
+    return '+92 $digits';
   }
 
   // ── Identity card ─────────────────────────────────────────────────────────
