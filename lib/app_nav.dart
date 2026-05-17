@@ -5,6 +5,22 @@ import 'app_strings.dart';
 import 'fir_model.dart';
 import 'fir_store.dart';
 import 'sach_route.dart';
+import 'alert_store.dart';
+import 'user_profile_store.dart';
+import 'api_service.dart';
+import 'dart:convert';
+
+/// Refreshes data across the app (FIRs, Alerts, User Profile)
+void triggerGlobalRefresh() async {
+  FirStore.instance.fetchMyFirs();
+  AlertStore.instance.fetchNotifications();
+  try {
+    final response = await ApiService.get('/user/profile');
+    if (response.statusCode == 200) {
+      UserProfileStore.instance.updateFromMap(jsonDecode(response.body));
+    }
+  } catch (_) {}
+}
 
 // Forward-declare to avoid circular imports — resolved at call site via dynamic navigation.
 // Each screen passes its "current page index" so its own tab isn't tapped.

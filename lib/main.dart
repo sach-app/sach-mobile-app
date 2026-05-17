@@ -12,6 +12,21 @@ import 'edit_profile_screen.dart';
 import 'privacy_settings_screen.dart';
 import 'notification_settings_screen.dart';
 import 'main_screen.dart';
+import 'app_nav.dart';
+
+class AppRefreshObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    triggerGlobalRefresh();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    triggerGlobalRefresh();
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +44,7 @@ class SachApp extends StatelessWidget {
       title: 'SACH',
       theme: ThemeData(brightness: Brightness.dark, fontFamily: 'Roboto'),
       home: const SachSplashScreen(),
+      navigatorObservers: [AppRefreshObserver()],
       routes: {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),

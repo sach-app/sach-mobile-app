@@ -1,5 +1,31 @@
 import 'dart:math';
 
+class EvidenceItem {
+  final String id;
+  final String fileUrl;
+  final String fileName;
+  final String fileType;
+  final String createdAt;
+
+  EvidenceItem({
+    required this.id,
+    required this.fileUrl,
+    required this.fileName,
+    required this.fileType,
+    required this.createdAt,
+  });
+
+  factory EvidenceItem.fromJson(Map<String, dynamic> json) {
+    return EvidenceItem(
+      id: json['id']?.toString() ?? '',
+      fileUrl: json['file_url']?.toString() ?? '',
+      fileName: json['file_name']?.toString() ?? 'evidence',
+      fileType: json['file_type']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+    );
+  }
+}
+
 // Shared FIR data model used by dashboard and file_fir_screen
 class FirItem {
   final String id;
@@ -12,9 +38,9 @@ class FirItem {
   final String district;
   final String description;
   final String incidentDate;
-  final String category;  final String ledgerHash;
-
-
+  final String category;
+  final String ledgerHash;
+  final List<EvidenceItem> evidence;
   FirItem({
     required this.id,
     this.trackingNumber,
@@ -28,6 +54,7 @@ class FirItem {
     this.incidentDate = '',
     this.category = '',
     String? ledgerHash,
+    this.evidence = const [],
   }) : ledgerHash = ledgerHash ?? _genHash();
 
   factory FirItem.fromJson(Map<String, dynamic> json) {
@@ -43,6 +70,10 @@ class FirItem {
       description: json['description']?.toString() ?? '',
       incidentDate: json['incident_date']?.toString() ?? '',
       category: json['category']?.toString() ?? '',
+      evidence: (json['evidence'] as List<dynamic>?)
+              ?.map((e) => EvidenceItem.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 

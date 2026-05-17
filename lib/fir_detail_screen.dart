@@ -7,6 +7,7 @@ import 'fir_store.dart';
 import 'theme.dart';
 import 'fir_model.dart';
 import 'app_nav.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FirDetailScreen extends StatefulWidget {
   final FirItem fir;
@@ -24,6 +25,10 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
   void initState() {
     super.initState();
     _currentFir = widget.fir;
+    // Fetch detailed FIR data (which includes evidence) as soon as the screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshFir();
+    });
   }
 
   Future<void> _refreshFir() async {
@@ -39,6 +44,7 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
           FirStore.instance.updateSingleFir(freshFir);
         }
       } else {
+        debugPrint('Failed to refresh FIR. Status: ${response.statusCode}, Body: ${response.body}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -50,6 +56,7 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
         }
       }
     } catch (e) {
+      debugPrint('Exception in _refreshFir: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -656,7 +663,13 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              if (_currentFir.evidence.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                ..._currentFir.evidence.map((e) => _buildEvidenceItem(e)),
+                const SizedBox(height: 14),
+              ] else ...[
+                const SizedBox(height: 14),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -693,6 +706,97 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEvidenceItem(EvidenceItem evidence) {
+    final lowerUrl = evidence.fileUrl.toLowerCase();
+    final isImage = lowerUrl.endsWith('.png') ||
+        lowerUrl.endsWith('.jpg') ||
+        lowerUrl.endsWith('.jpeg') ||
+        evidence.fileType.toLowerCase().contains('image');
+
+    if (isImage) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        height: 120,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: kInputBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: kDivider),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => _FullScreenImagePage(imageUrl: evidence.fileUrl),
+                  ),
+                );
+              },
+              child: Image.network(
+                evidence.fileUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(color: kGold),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Icon(Icons.broken_image_rounded, color: kTextSub, size: 30),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: kInputBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kDivider),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.insert_drive_file_rounded, color: kGold, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  evidence.fileName,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  evidence.fileType,
+                  style: const TextStyle(color: kTextSub, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.open_in_new_rounded, color: kGreen, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              final url = Uri.parse(evidence.fileUrl);
+              launchUrl(url, mode: LaunchMode.externalApplication);
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -857,6 +961,53 @@ class _StatusRow extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FullScreenImagePage extends StatelessWidget {
+  final String imageUrl;
+
+  const _FullScreenImagePage({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: kGold),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.broken_image_rounded, color: Colors.white54, size: 48),
+                    SizedBox(height: 16),
+                    Text('Failed to load image', style: TextStyle(color: Colors.white54)),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

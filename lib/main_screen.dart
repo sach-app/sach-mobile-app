@@ -43,6 +43,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   }
 
   void _onTabChanged() {
+    triggerGlobalRefresh();
     setState(() {
       _animationController.forward(from: 0.0);
     });
