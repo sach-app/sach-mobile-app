@@ -9,9 +9,26 @@ import 'alerts_screen.dart';
 import 'profile_screen.dart';
 import 'file_fir_screen.dart';
 import 'edit_profile_screen.dart';
-import 'privacy_settings_screen.dart';
-import 'notification_settings_screen.dart';
 import 'main_screen.dart';
+import 'app_nav.dart';
+
+class AppRefreshObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    if (route is PageRoute) {
+      triggerGlobalRefresh();
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    if (route is PageRoute) {
+      triggerGlobalRefresh();
+    }
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +46,7 @@ class SachApp extends StatelessWidget {
       title: 'SACH',
       theme: ThemeData(brightness: Brightness.dark, fontFamily: 'Roboto'),
       home: const SachSplashScreen(),
+      navigatorObservers: [AppRefreshObserver()],
       routes: {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
@@ -38,9 +56,6 @@ class SachApp extends StatelessWidget {
         '/profile': (context) => const ProfileScreen(),
         '/file_fir': (context) => const FileFirScreen(),
         '/edit_profile': (context) => const EditProfileScreen(),
-        '/privacy_settings': (context) => const PrivacySettingsScreen(),
-        '/notification_settings': (context) =>
-            const NotificationSettingsScreen(),
       },
     );
   }
@@ -50,7 +65,7 @@ class SachApp extends StatelessWidget {
 const Color kBgDeep = Color(0xFF050F08);
 const Color kBgCard = Color(0xFF0C1F10);
 const Color kCyan = Color(0xFF01763A); // Pakistan flag green
-const Color kPurple = Color(0xFFD4AF37); // Government gold
+const Color kPurple = Color(0xFFD4AF37); // SACH gold
 const Color kAccentEnd = Color(0xFF4CAF50); // Muted emerald
 const Color kDivider = Color(0xFF132B18);
 const Color kTextSub = Color(0xFF6B8C6E);

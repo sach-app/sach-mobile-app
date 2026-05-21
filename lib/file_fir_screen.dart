@@ -1,11 +1,18 @@
+import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
 import 'theme.dart';
 import 'fir_model.dart';
 import 'app_nav.dart';
+import 'api_service.dart';
 
 // ─── Pakistani location data ──────────────────────────────────────────────────
 /// City → list of police-jurisdiction districts
@@ -132,6 +139,7 @@ class _FileFirScreenState extends State<FileFirScreen>
   // ── Step 0: Location ──────────────────────────────────────────────────────
   bool _locationPinned = false;
   bool _usingGps = false;
+  bool _isGeocoding = false;
   final _addressCtrl = TextEditingController();
   String? _city;
   LatLng? _pinnedLocation;
@@ -145,7 +153,7 @@ class _FileFirScreenState extends State<FileFirScreen>
   final _descCtrl = TextEditingController();
 
   // ── Step 2: Evidence ──────────────────────────────────────────────────────
-  bool _evidenceAdded = false;
+  String? _evidencePath;
 
   @override
   void initState() {
@@ -177,7 +185,7 @@ class _FileFirScreenState extends State<FileFirScreen>
         return;
       }
       if (_city == null) {
-        _showSnack('Please select a district / city.');
+        _showSnack('Please select a city.');
         return;
       }
     }
@@ -227,60 +235,333 @@ class _FileFirScreenState extends State<FileFirScreen>
     );
   }
 
+  Future<void> _reverseGeocode(double lat, double lng) async {
+    setState(() {
+      _isGeocoding = true;
+    });
+
+    String area = '';
+    String cityVal = '';
+    String districtVal = '';
+    List<String> allTextParts = [];
+    bool success = false;
+
+    // 1. Try Native Geocoding (supported on Android/iOS/macOS)
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          area = place.subLocality ?? '';
+          if (area.isEmpty) {
+            area = place.street ?? place.name ?? '';
+          }
+          cityVal = place.locality ?? '';
+          districtVal = place.subAdministrativeArea ?? '';
+          
+          allTextParts = [
+            place.name,
+            place.street,
+            place.subLocality,
+            place.locality,
+            place.subAdministrativeArea,
+            place.administrativeArea,
+            place.country,
+          ].whereType<String>().map((e) => e.toLowerCase()).toList();
+          
+          success = true;
+        }
+      } catch (e) {
+        // Native geocoding failed or not available, fall back to Nominatim
+      }
+    }
+
+    // 2. Try Nominatim HTTP Geocoding (Web, Windows, or fallback)
+    if (!success) {
+      try {
+        final url = Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&accept-language=en',
+        );
+        final response = await http.get(url, headers: {
+          'User-Agent': 'SACH-Portal-App/1.0',
+        });
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final address = data['address'] as Map<String, dynamic>?;
+          if (address != null) {
+            area = address['suburb'] ?? address['neighbourhood'] ?? address['road'] ?? address['village'] ?? '';
+            cityVal = address['city'] ?? address['town'] ?? address['municipality'] ?? '';
+            districtVal = address['county'] ?? address['subdistrict'] ?? '';
+            
+            allTextParts = [
+              address['suburb'],
+              address['neighbourhood'],
+              address['road'],
+              address['village'],
+              address['town'],
+              address['city'],
+              address['city_district'],
+              address['county'],
+              address['subdistrict'],
+              address['state'],
+              data['display_name'],
+            ].whereType<String>().map((e) => e.toLowerCase()).toList();
+            
+            success = true;
+          }
+        }
+      } catch (e) {
+        // HTTP request failed
+      }
+    }
+
+    if (success) {
+      // Clean up empty fields
+      area = area.trim();
+      cityVal = cityVal.trim();
+      districtVal = districtVal.trim();
+
+      // Format: Area, District, City [lat, lng]
+      List<String> parts = [];
+      if (area.isNotEmpty) parts.add(area);
+      if (districtVal.isNotEmpty) parts.add(districtVal);
+      if (cityVal.isNotEmpty) parts.add(cityVal);
+      
+      final formattedAddress = "${parts.join(', ')} [${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}]";
+
+      setState(() {
+        _addressCtrl.text = formattedAddress;
+        _locationPinned = true;
+        _pinnedLocation = LatLng(lat, lng);
+      });
+
+      // Helper function to check if any token matches
+      bool matchesText(String target) {
+        final targetLower = target.toLowerCase().replaceAll('ā', 'a');
+        for (final text in allTextParts) {
+          final textLower = text.replaceAll('ā', 'a');
+          if (textLower.contains(targetLower) || targetLower.contains(textLower)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // Auto-select city
+      String? matchedCity;
+      for (final c in _cities) {
+        if (matchesText(c)) {
+          matchedCity = c;
+          break;
+        }
+      }
+
+      // Fall back to bounding box check if no match by name
+      matchedCity ??= _cityFromLatLng(lat, lng);
+
+      if (matchedCity != null) {
+        setState(() {
+          _city = matchedCity;
+          _district = null; // Reset district/area when city changes
+        });
+
+        final subDistricts = _cityDistricts[matchedCity] ?? [];
+        String? matchedDistrict;
+        
+        // 1. Try exact/substring match
+        for (final sd in subDistricts) {
+          if (matchesText(sd)) {
+            matchedDistrict = sd;
+            break;
+          }
+        }
+
+        // 2. Try smart mapping for specific cities
+        if (matchedDistrict == null) {
+          final textString = allTextParts.join(' ').toLowerCase();
+          
+          if (matchedCity == 'Karachi') {
+            if (textString.contains('central') || textString.contains('nazimabad') || textString.contains('liaquatabad') || textString.contains('gulberg')) {
+              matchedDistrict = 'Karachi Central';
+            } else if (textString.contains('east') || textString.contains('gulshan') || textString.contains('jamshed') || textString.contains('faisal') || textString.contains('ancholi') || textString.contains('samanabad')) {
+              matchedDistrict = 'Karachi East';
+            } else if (textString.contains('west') || textString.contains('orangi') || textString.contains('baldia') || textString.contains('site') || textString.contains('manghopir')) {
+              matchedDistrict = 'Karachi West';
+            } else if (textString.contains('south') || textString.contains('saddar') || textString.contains('clifton') || textString.contains('lyari') || textString.contains('cantonment')) {
+              matchedDistrict = 'Karachi South';
+            } else if (textString.contains('korangi') || textString.contains('landhi')) {
+              matchedDistrict = 'Karachi Korangi';
+            } else if (textString.contains('malir') || textString.contains('gadap') || textString.contains('qasim')) {
+              matchedDistrict = 'Malir';
+            } else if (textString.contains('kemari') || textString.contains('keamari') || textString.contains('mauripur')) {
+              matchedDistrict = 'Kemari';
+            }
+          } else if (matchedCity == 'Lahore') {
+            if (textString.contains('cantt') || textString.contains('cantonment')) {
+              matchedDistrict = 'Lahore Cantt';
+            } else if (textString.contains('model town')) {
+              matchedDistrict = 'Model Town';
+            } else if (textString.contains('gulberg')) {
+              matchedDistrict = 'Gulberg';
+            } else if (textString.contains('iqbal')) {
+              matchedDistrict = 'Iqbal Town';
+            } else if (textString.contains('raiwind')) {
+              matchedDistrict = 'Raiwind';
+            } else {
+              matchedDistrict = 'Lahore City';
+            }
+          } else if (matchedCity == 'Islamabad') {
+            if (textString.contains('margalla')) {
+              matchedDistrict = 'Margalla Hills';
+            } else if (textString.contains('sihala')) {
+              matchedDistrict = 'Sihala';
+            } else if (textString.contains('noon')) {
+              matchedDistrict = 'Noon';
+            } else {
+              matchedDistrict = 'Islamabad Capital Territory';
+            }
+          } else if (matchedCity == 'Rawalpindi') {
+            if (textString.contains('cantt') || textString.contains('cantonment')) {
+              matchedDistrict = 'Rawalpindi Cantt';
+            } else if (textString.contains('taxila')) {
+              matchedDistrict = 'Taxila';
+            } else if (textString.contains('gujar khan')) {
+              matchedDistrict = 'Gujar Khan';
+            } else if (textString.contains('murree')) {
+              matchedDistrict = 'Murree';
+            } else {
+              matchedDistrict = 'Rawalpindi City';
+            }
+          }
+        }
+
+        // 3. Fallback to the first available district
+        matchedDistrict ??= subDistricts.isNotEmpty ? subDistricts.first : null;
+
+        if (matchedDistrict != null) {
+          setState(() {
+            _district = matchedDistrict;
+          });
+        }
+      }
+    } else {
+      // Fallback if geocoding yields no results
+      final detectedCity = _cityFromLatLng(lat, lng);
+      setState(() {
+        _locationPinned = true;
+        _pinnedLocation = LatLng(lat, lng);
+        _addressCtrl.text = "${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}";
+        if (detectedCity != null && detectedCity != _city) {
+          _city = detectedCity;
+          _district = null;
+        }
+      });
+    }
+
+    setState(() {
+      _isGeocoding = false;
+    });
+  }
+
   // ── Submit ────────────────────────────────────────────────────────────────
-  void _submitFir() {
-    final now = DateTime.now();
-    final rng = Random();
-    final firId = 'FIR-${now.year}-${(rng.nextInt(89999) + 10000)}';
+  bool _isSubmitting = false;
 
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final filedDate =
-        'Filed on ${months[now.month - 1]} ${now.day.toString().padLeft(2, '0')}, ${now.year}';
+  Future<void> _submitFir() async {
+    setState(() => _isSubmitting = true);
 
-    // Build a short title from category or description
-    String title = _category ?? _descCtrl.text;
+    String title = _category ?? 'Other Incident';
     if (title.length > 45) title = '${title.substring(0, 42)}…';
 
-    final fir = FirItem(
-      id: firId,
-      title: title,
-      date: filedDate,
-      status: 'Pending',
-      address: _addressCtrl.text.trim(),
-      city: _city ?? '',
-      district: _district ?? '',
-      description: _descCtrl.text.trim(),
-      incidentDate: _incidentDate != null
-          ? '${_incidentDate!.day}/${_incidentDate!.month}/${_incidentDate!.year}'
-          : '',
-      category: _category ?? '',
-    );
+    final String locationStr = [
+      _addressCtrl.text.trim(),
+      _district,
+      _city
+    ].where((e) => e != null && e.isNotEmpty).join(', ');
 
-    // Show success then pop with result
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _SubmitSuccessDialog(
-        firId: firId,
-        onDone: () {
-          Navigator.of(context).pop(); // close dialog
-          Navigator.of(context).pop(fir); // return to dashboard with new FIR
-        },
-      ),
-    );
+    String backendCategory = 'other';
+    switch (_category) {
+      case 'Theft / Robbery': backendCategory = 'robbery'; break;
+      case 'Cybercrime': backendCategory = 'cybercrime'; break;
+      case 'Fraud / Scam': backendCategory = 'fraud'; break;
+      case 'Assault / Violence': backendCategory = 'assault'; break;
+      case 'Missing Person': backendCategory = 'kidnapping'; break;
+      default: backendCategory = 'other';
+    }
+
+    final payload = <String, dynamic>{
+      'title': title,
+      'description': _descCtrl.text.trim(),
+      'category': backendCategory,
+      'priority': 'medium', // Default priority
+    };
+
+    if (_incidentDate != null) {
+      DateTime dt = _incidentDate!;
+      if (_incidentTime != null) {
+        dt = DateTime(dt.year, dt.month, dt.day, _incidentTime!.hour, _incidentTime!.minute);
+      }
+      payload['incident_date'] = dt.toUtc().toIso8601String();
+    }
+
+    if (locationStr.isNotEmpty) {
+      payload['incident_location'] = locationStr;
+    }
+
+    try {
+      final response = await ApiService.post('/user/fir', payload);
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        final firId = data['id']?.toString() ?? 'FIR-SUBMITTED';
+
+        if (_evidencePath != null) {
+          // Upload evidence using the newly created FIR ID
+          try {
+            await ApiService.uploadEvidence(firId, _evidencePath!);
+          } catch (e) {
+            // If evidence upload fails, the FIR is still created. We continue to success screen.
+          }
+        }
+
+        final fir = FirItem(
+          id: firId,
+          title: title,
+          date: 'Just now',
+          status: 'Pending',
+          address: _addressCtrl.text.trim(),
+          city: _city ?? '',
+          district: _district ?? '',
+          description: _descCtrl.text.trim(),
+          incidentDate: _incidentDate != null
+              ? '${_incidentDate!.day}/${_incidentDate!.month}/${_incidentDate!.year}'
+              : '',
+          category: _category ?? '',
+        );
+
+        // Show success then pop with result
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _SubmitSuccessDialog(
+            firId: firId,
+            onDone: () {
+              Navigator.of(context).pop(); // close dialog
+              Navigator.of(context).pop(fir); // return to dashboard with new FIR
+            },
+          ),
+        );
+      } else {
+        final errorDetail = jsonDecode(response.body)['detail'];
+        final errorMsg = errorDetail is List ? errorDetail[0]['msg'] : errorDetail.toString();
+        _showSnack('Error: $errorMsg');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Network error: $e');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   // ── Date/Time helpers ─────────────────────────────────────────────────────
@@ -491,24 +772,7 @@ class _FileFirScreenState extends State<FileFirScreen>
                 initialCenter: const LatLng(30.3753, 69.3451),
                 initialZoom: 5.5,
                 onTap: (_, latLng) {
-                  final detectedCity = _cityFromLatLng(
-                    latLng.latitude,
-                    latLng.longitude,
-                  );
-                  setState(() {
-                    _pinnedLocation = latLng;
-                    _locationPinned = true;
-                    if (_addressCtrl.text.isEmpty ||
-                        _addressCtrl.text == 'Current GPS Location') {
-                      _addressCtrl.text =
-                          '${latLng.latitude.toStringAsFixed(5)}, '
-                          '${latLng.longitude.toStringAsFixed(5)}';
-                    }
-                    if (detectedCity != null && detectedCity != _city) {
-                      _city = detectedCity;
-                      _district = null; // reset district when city changes
-                    }
-                  });
+                  _reverseGeocode(latLng.latitude, latLng.longitude);
                 },
               ),
               children: [
@@ -521,12 +785,15 @@ class _FileFirScreenState extends State<FileFirScreen>
                     markers: [
                       Marker(
                         point: _pinnedLocation!,
-                        width: 50,
-                        height: 58,
+                        width: 30,
+                        height: 44,
+                        alignment: Alignment.topCenter,
                         child: Column(
+                          mainAxisSize: MainAxisSize.max,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(6),
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 color: kGold,
                                 shape: BoxShape.circle,
@@ -537,10 +804,12 @@ class _FileFirScreenState extends State<FileFirScreen>
                                   ),
                                 ],
                               ),
-                              child: const Icon(
-                                Icons.location_on_rounded,
-                                color: Colors.white,
-                                size: 18,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.location_on_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
                             ),
                             Container(width: 2, height: 14, color: kGold),
@@ -579,12 +848,9 @@ class _FileFirScreenState extends State<FileFirScreen>
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () {
+              _reverseGeocode(33.6844, 73.0479);
               setState(() {
                 _usingGps = true;
-                _locationPinned = true;
-                if (_addressCtrl.text.isEmpty) {
-                  _addressCtrl.text = 'Current GPS Location';
-                }
               });
             },
             icon: Icon(
@@ -618,15 +884,28 @@ class _FileFirScreenState extends State<FileFirScreen>
           decoration: sachInputDecoration(
             hint: 'Enter complete address',
             prefixIcon: Icon(Icons.home_outlined, color: kGold, size: 20),
+            suffixIcon: _isGeocoding
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: CircularProgressIndicator(
+                        color: kGold,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  )
+                : null,
           ),
         ),
         const SizedBox(height: 18),
 
-        const SachLabel('District'),
+        const SachLabel('City'),
         DropdownButtonFormField<String>(
           value: _city,
           dropdownColor: kBgCard,
-          decoration: sachInputDecoration(hint: 'Select district'),
+          decoration: sachInputDecoration(hint: 'Select city'),
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kTextSub),
           style: const TextStyle(color: Colors.white, fontSize: 14),
           items: _cities
@@ -634,21 +913,21 @@ class _FileFirScreenState extends State<FileFirScreen>
               .toList(),
           onChanged: (v) => setState(() {
             _city = v;
-            _district = null; // reset city/area whenever district changes
+            _district = null; // reset district/area whenever city changes
           }),
         ),
         const SizedBox(height: 18),
 
-        // City / Area — filtered by district
-        const SachLabel('City / Area'),
+        // District / Area — filtered by city
+        const SachLabel('District/Area'),
         DropdownButtonFormField<String>(
-          key: ValueKey(_city), // forces rebuild when district changes
+          key: ValueKey(_city), // forces rebuild when city changes
           value: _district,
           dropdownColor: kBgCard,
           decoration: sachInputDecoration(
             hint: _city == null
-                ? 'Select a district first'
-                : 'Select city / area in $_city',
+                ? 'Select a city first'
+                : 'Select district/area in $_city',
           ),
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kTextSub),
           style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -772,6 +1051,55 @@ class _FileFirScreenState extends State<FileFirScreen>
   }
 
   // ── Step 2: Evidence ──────────────────────────────────────────────────────
+  void _showEvidencePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kBgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: kGold),
+                title: const Text('Take Photo with Camera', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final picker = ImagePicker();
+                  final pickedFile = await picker.pickImage(source: ImageSource.camera);
+                  if (pickedFile != null) setState(() => _evidencePath = pickedFile.path);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: kGold),
+                title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final picker = ImagePicker();
+                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null) setState(() => _evidencePath = pickedFile.path);
+                },
+              ),
+              if (_evidencePath != null) ...[
+                const Divider(color: kDivider),
+                ListTile(
+                  leading: const Icon(Icons.delete_rounded, color: Colors.redAccent),
+                  title: const Text('Remove Evidence', style: TextStyle(color: Colors.redAccent)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() => _evidencePath = null);
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildEvidenceStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,42 +1121,42 @@ class _FileFirScreenState extends State<FileFirScreen>
 
         // Upload area
         GestureDetector(
-          onTap: () => setState(() => _evidenceAdded = !_evidenceAdded),
+          onTap: _showEvidencePicker,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             width: double.infinity,
             height: 200,
             decoration: BoxDecoration(
-              color: _evidenceAdded ? kGreen.withOpacity(0.07) : kInputBg,
+              color: _evidencePath != null ? kGreen.withOpacity(0.07) : kInputBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: CustomPaint(
               painter: _DashedBorderPainter(
-                color: _evidenceAdded ? kGreen : kDivider,
+                color: _evidencePath != null ? kGreen : kDivider,
               ),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      _evidenceAdded
+                      _evidencePath != null
                           ? Icons.check_circle_rounded
                           : Icons.add_photo_alternate_rounded,
-                      color: _evidenceAdded ? kGold : kTextSub,
+                      color: _evidencePath != null ? kGold : kTextSub,
                       size: 52,
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _evidenceAdded
-                          ? 'Evidence Added ✓'
+                      _evidencePath != null
+                          ? 'Evidence Attached ✓'
                           : 'Tap to upload photo/video evidence',
                       style: TextStyle(
-                        color: _evidenceAdded ? kGold : kTextSub,
+                        color: _evidencePath != null ? kGold : kTextSub,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (!_evidenceAdded) ...[
+                    if (_evidencePath == null) ...[
                       const SizedBox(height: 4),
                       Text(
                         '(Max 25MB)',
@@ -898,30 +1226,41 @@ class _FileFirScreenState extends State<FileFirScreen>
                 ),
               ],
             ),
-            child: ElevatedButton.icon(
-              onPressed: _goNext,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 17),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: Icon(
-                isLast ? Icons.shield_rounded : Icons.arrow_forward_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-              label: Text(
-                labels[_step],
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
-            ),
+            child: _isSubmitting
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 17),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(color: kGold, strokeWidth: 2.5),
+                      ),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _goNext,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 17),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: Icon(
+                      isLast ? Icons.shield_rounded : Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    label: Text(
+                      labels[_step],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
           ),
           if (isLast) ...[
             const SizedBox(height: 10),

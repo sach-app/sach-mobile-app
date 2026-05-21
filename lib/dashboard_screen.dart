@@ -811,15 +811,48 @@ class _FirCard extends StatelessWidget {
   const _FirCard({required this.item});
 
   Color get _statusColor {
-    switch (item.status) {
-      case 'Pending':
+    final status = item.status.toLowerCase().trim();
+    switch (status) {
+      case 'pending':
+      case 'filed':
         return const Color(0xFFF59E0B);
-      case 'Investigating':
+      case 'under_review':
+      case 'under review':
+      case 'reviewed':
+        return const Color(0xFF8B5CF6);
+      case 'under_investigation':
+      case 'under investigation':
+      case 'investigating':
         return const Color(0xFF3B82F6);
-      case 'Resolved':
+      case 'resolved':
         return kGreen;
+      case 'closed':
+        return kTextSub;
       default:
         return kTextSub;
+    }
+  }
+
+  String get _statusLabel {
+    final status = item.status.toLowerCase().trim();
+    switch (status) {
+      case 'pending':
+      case 'filed':
+        return 'Pending';
+      case 'under_review':
+      case 'under review':
+      case 'reviewed':
+        return 'Under Review';
+      case 'under_investigation':
+      case 'under investigation':
+      case 'investigating':
+        return 'Investigating';
+      case 'resolved':
+        return 'Resolved';
+      case 'closed':
+        return 'Closed';
+      default:
+        return item.status.replaceAll('_', ' ').split(' ').map((str) => str.isNotEmpty ? '${str[0].toUpperCase()}${str.substring(1)}' : '').join(' ');
     }
   }
 
@@ -864,10 +897,13 @@ class _FirCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
-                            item.id,
+                            item.trackingNumber != null && item.trackingNumber!.isNotEmpty
+                                ? item.trackingNumber!
+                                : 'Tracking No: Pending',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 13,
@@ -890,7 +926,7 @@ class _FirCard extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            item.status,
+                            _statusLabel,
                             style: TextStyle(
                               color: _statusColor,
                               fontSize: 11,

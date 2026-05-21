@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-// ─── Color Palette — Pakistan Government ─────────────────────────────────────
+// ─── Color Palette — SACH App ─────────────────────────────────────
 const Color kBgDeep = Color(0xFF050F08); // deep forest black-green
 const Color kBgCard = Color(0xFF0C1F10); // dark emerald card
 const Color kGreen = Color(0xFF01763A); // Pakistan flag green
-const Color kGold = Color(0xFFD4AF37); // government gold
+const Color kGold = Color(0xFFD4AF37); // SACH gold
 const Color kEmerald = Color(0xFF4CAF50); // muted emerald
 const Color kDivider = Color(0xFF132B18); // dark green divider
 const Color kTextSub = Color(0xFF6B8C6E); // muted green-gray
@@ -264,8 +264,7 @@ class SachFooterLinks extends StatelessWidget {
   );
 }
 
-
-// ─── SMS OTP Sheet ────────────────────────────────────────────────────────────
+// ─── Email OTP Sheet ────────────────────────────────────────────────────────────
 void showOtpSheet(
   BuildContext context,
   String cnic, {
@@ -407,7 +406,7 @@ class _OtpSheetState extends State<_OtpSheet> {
           const SizedBox(height: 20),
 
           Text(
-            _verified ? 'OTP Verified!' : 'Enter SMS OTP',
+            _verified ? 'OTP Verified!' : 'Enter Email OTP',
             style: TextStyle(
               color: _verified ? kGold : Colors.white.withOpacity(0.95),
               fontSize: 20,

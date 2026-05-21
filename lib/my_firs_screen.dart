@@ -12,6 +12,8 @@ import 'app_strings.dart';
 import 'app_nav.dart';
 import 'sach_header.dart';
 import 'fir_detail_screen.dart';
+import 'dart:convert';
+import 'api_service.dart';
 
 class MyFirsScreen extends StatefulWidget {
   const MyFirsScreen({super.key});
@@ -22,13 +24,16 @@ class MyFirsScreen extends StatefulWidget {
 
 class _MyFirsScreenState extends State<MyFirsScreen> {
   String _search = '';
-  String? _filterStatus; // null = All
+  String _filterStatus = 'All';
 
   @override
   void initState() {
     super.initState();
     FirStore.instance.addListener(_onStoreUpdate);
     LocaleStore.instance.addListener(_onStoreUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FirStore.instance.fetchMyFirs();
+    });
   }
 
   @override
@@ -46,8 +51,22 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
           _search.isEmpty ||
           f.id.toLowerCase().contains(_search.toLowerCase()) ||
           f.title.toLowerCase().contains(_search.toLowerCase());
-      final matchStatus = _filterStatus == null || f.status == _filterStatus;
-      return matchSearch && matchStatus;
+      if (_filterStatus == 'All') return matchSearch;
+
+      final fStatus = f.status.toLowerCase().replaceAll('_', ' ').trim();
+      final filterStatusNormalized = _filterStatus.toLowerCase().replaceAll('_', ' ').trim();
+
+      bool isMatch = fStatus == filterStatusNormalized;
+      if (!isMatch) {
+        if (filterStatusNormalized == 'investigating' && fStatus == 'under investigation') {
+          isMatch = true;
+        } else if (filterStatusNormalized == 'under review' && fStatus == 'reviewed') {
+          isMatch = true;
+        } else if (filterStatusNormalized == 'pending' && fStatus == 'filed') {
+          isMatch = true;
+        }
+      }
+      return matchSearch && isMatch;
     }).toList();
   }
 
@@ -55,6 +74,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
     final result = await sachPush<FirItem>(context, const FileFirScreen());
     if (result != null) FirStore.instance.add(result);
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -72,18 +92,18 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
               title: S.myComplaints,
               actions: [
                 // Filter button
-                PopupMenuButton<String?>(
+                PopupMenuButton<String>(
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       Icon(
                         Icons.filter_list_rounded,
-                        color: _filterStatus != null
+                        color: _filterStatus != 'All'
                             ? kGold
                             : Colors.white.withOpacity(0.75),
                         size: 24,
                       ),
-                      if (_filterStatus != null)
+                      if (_filterStatus != 'All')
                         Positioned(
                           right: -2,
                           top: -2,
@@ -106,7 +126,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
                   onSelected: (v) => setState(() => _filterStatus = v),
                   itemBuilder: (_) {
                     const statuses = [
-                      null,
+                      'All',
                       'Pending',
                       'Investigating',
                       'Resolved',
@@ -123,7 +143,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
                     ];
                     return List.generate(statuses.length, (i) {
                       final selected = _filterStatus == statuses[i];
-                      return PopupMenuItem<String?>(
+                      return PopupMenuItem<String>(
                         value: statuses[i],
                         padding: EdgeInsets.zero,
                         child: Container(
@@ -191,14 +211,16 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
             ),
           ),
         ),
-        body: firs.isEmpty
-            ? _buildEmptyState()
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: firs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _MyFirCard(item: firs[i]),
-              ),
+        body: FirStore.instance.isLoading
+            ? const Center(child: CircularProgressIndicator(color: kGold))
+            : firs.isEmpty
+                ? _buildEmptyState()
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    itemCount: firs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) => _MyFirCard(item: firs[i]),
+                  ),
         floatingActionButton: FloatingActionButton(
           onPressed: _openFileFir,
           backgroundColor: kGreen,
@@ -253,7 +275,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            _filterStatus != null
+            _filterStatus != 'All'
                 ? '${S.noComplaintsFilter} — $_filterStatus'
                 : S.noComplaintsYet,
             style: TextStyle(
@@ -276,19 +298,48 @@ class _MyFirCard extends StatelessWidget {
   const _MyFirCard({required this.item});
 
   Color get _statusColor {
-    switch (item.status) {
-      case 'Pending':
+    final status = item.status.toLowerCase().trim();
+    switch (status) {
+      case 'pending':
+      case 'filed':
         return const Color(0xFFF59E0B);
-      case 'Investigating':
-        return const Color(0xFF3B82F6);
-      case 'Resolved':
-        return kGreen;
-      case 'Closed':
-        return kTextSub;
-      case 'Under Review':
+      case 'under_review':
+      case 'under review':
+      case 'reviewed':
         return const Color(0xFF8B5CF6);
+      case 'under_investigation':
+      case 'under investigation':
+      case 'investigating':
+        return const Color(0xFF3B82F6);
+      case 'resolved':
+        return kGreen;
+      case 'closed':
+        return kTextSub;
       default:
         return kTextSub;
+    }
+  }
+
+  String get _statusLabel {
+    final status = item.status.toLowerCase().trim();
+    switch (status) {
+      case 'pending':
+      case 'filed':
+        return 'Pending';
+      case 'under_review':
+      case 'under review':
+      case 'reviewed':
+        return 'Under Review';
+      case 'under_investigation':
+      case 'under investigation':
+      case 'investigating':
+        return 'Investigating';
+      case 'resolved':
+        return 'Resolved';
+      case 'closed':
+        return 'Closed';
+      default:
+        return item.status.replaceAll('_', ' ').split(' ').map((str) => str.isNotEmpty ? '${str[0].toUpperCase()}${str.substring(1)}' : '').join(' ');
     }
   }
 
@@ -353,14 +404,16 @@ class _MyFirCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  item.id,
+                                  item.trackingNumber != null && item.trackingNumber!.isNotEmpty
+                                      ? item.trackingNumber!
+                                      : 'Tracking No: Pending',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
                                     fontSize: 13,
@@ -395,7 +448,7 @@ class _MyFirCard extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              item.status,
+                              _statusLabel,
                               style: TextStyle(
                                 color: _statusColor,
                                 fontSize: 11,

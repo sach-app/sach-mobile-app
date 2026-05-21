@@ -126,8 +126,8 @@ class S {
       ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام اور شناختی کارڈ ساچ ویریفیکیشن سے مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
       : 'Verified Account: Your Name and CNIC are locked via SACH Verification and cannot be altered.';
   static String get epLockedNotice => _u
-      ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام اور شناختی کارڈ مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
-      : 'Verified Account: Your Name and CNIC are locked and cannot be altered.';
+      ? 'تصدیق شدہ اکاؤنٹ: آپ کا نام، شناختی کارڈ اور پتہ مقفل ہیں اور تبدیل نہیں کیے جا سکتے۔'
+      : 'Verified Account: Your Name, CNIC, and Address are locked and cannot be altered.';
 
   // ── File FIR ────────────────────────────────────────────────────────────────
   static String get fileFir => _u ? 'ای-ایف آئی آر داخل کریں' : 'File e-FIR';

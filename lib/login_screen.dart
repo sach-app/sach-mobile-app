@@ -71,10 +71,15 @@ class _LoginScreenState extends State<LoginScreen>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         await _storage.write(key: 'access_token', value: data['access_token']);
-        await _storage.write(key: 'refresh_token', value: data['refresh_token']);
+        await _storage.write(
+          key: 'refresh_token',
+          value: data['refresh_token'],
+        );
         appTabNotifier.value = 0;
         if (!mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/dashboard', (r) => false);
       } else {
         final data = jsonDecode(response.body);
         final errorDetail = data['detail'] ?? 'Login failed';
@@ -106,17 +111,25 @@ class _LoginScreenState extends State<LoginScreen>
     final cnic = _cnicController.text.trim();
     if (cnic.isEmpty || cnic.replaceAll('-', '').length != 13) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid CNIC first'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Please enter a valid CNIC first'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
-    setState(() { _isLoadingOtp = true; });
+    setState(() {
+      _isLoadingOtp = true;
+    });
 
     try {
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/user/login/otp/request'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode({'cnic': cnic}),
       );
 
@@ -133,16 +146,25 @@ class _LoginScreenState extends State<LoginScreen>
         final data = jsonDecode(response.body);
         final detail = data['detail'] ?? 'Failed to request OTP';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(detail.toString()), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(detail.toString()),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error. Please try again.'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Network error. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
-      if (mounted) setState(() { _isLoadingOtp = false; });
+      if (mounted)
+        setState(() {
+          _isLoadingOtp = false;
+        });
     }
   }
 
@@ -150,7 +172,10 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       await http.post(
         Uri.parse('${ApiConfig.baseUrl}/user/login/otp/request'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode({'cnic': cnic}),
       );
     } catch (e) {
@@ -162,7 +187,10 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/user/login/otp/verify'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode({'cnic': cnic, 'otp': otp}),
       );
 
@@ -171,24 +199,36 @@ class _LoginScreenState extends State<LoginScreen>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         await _storage.write(key: 'access_token', value: data['access_token']);
-        await _storage.write(key: 'refresh_token', value: data['refresh_token']);
+        await _storage.write(
+          key: 'refresh_token',
+          value: data['refresh_token'],
+        );
         appTabNotifier.value = 0;
         Future.delayed(const Duration(milliseconds: 1200), () {
-          if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+          if (mounted)
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/dashboard', (r) => false);
         });
         return true;
       } else {
         final data = jsonDecode(response.body);
         final detail = data['detail'] ?? 'Invalid OTP';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(detail.toString()), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(detail.toString()),
+            backgroundColor: Colors.red,
+          ),
         );
         return false;
       }
     } catch (e) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Network error.'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Network error.'),
+          backgroundColor: Colors.red,
+        ),
       );
       return false;
     }
@@ -299,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen>
         Column(
           children: [
             Text(
-              'Secure Government Authentication',
+              'Secure SACH Authentication',
               style: TextStyle(color: kTextSub, fontSize: 12.5),
             ),
             const SizedBox(height: 2),
@@ -403,7 +443,9 @@ class _LoginScreenState extends State<LoginScreen>
             child: TextButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const ForgotPasswordScreen(),
+                  ),
                 );
               },
               style: TextButton.styleFrom(
@@ -424,9 +466,7 @@ class _LoginScreenState extends State<LoginScreen>
 
           // Primary CTA — glowing
           _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: kGold),
-                )
+              ? const Center(child: CircularProgressIndicator(color: kGold))
               : SachGradientButton(
                   label: 'Authenticate & Sign In',
                   onPressed: _submit,
@@ -479,7 +519,7 @@ class _LoginScreenState extends State<LoginScreen>
           Icon(Icons.lock_rounded, color: kGold, size: 14),
           const SizedBox(width: 8),
           Text(
-            'Secured via JWT Authentication & Blockchain',
+            'Secured via SACH Identity Network',
             style: TextStyle(
               color: kTextSub,
               fontSize: 11,
