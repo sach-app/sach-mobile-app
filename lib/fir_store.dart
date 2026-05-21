@@ -46,6 +46,9 @@ class FirStore extends ChangeNotifier {
   }
 
   int get total => _firs.length;
-  int get pending => _firs.where((f) => f.status.toLowerCase() == 'pending').length;
+  int get pending => _firs.where((f) {
+        final s = f.status.toLowerCase();
+        return s == 'pending' || s == 'under_review' || s == 'under review';
+      }).length;
   int get resolved => _firs.where((f) => f.status.toLowerCase() == 'resolved').length;
 }

@@ -32,7 +32,7 @@ class FirItem {
   final String? trackingNumber;
   final String title;
   final String date;
-  final String status;
+  final String? _status;
   final String address;
   final String city;
   final String district;
@@ -41,12 +41,28 @@ class FirItem {
   final String category;
   final String ledgerHash;
   final List<EvidenceItem> evidence;
+  final double? latitude;
+  final double? longitude;
+  final int? assignedOfficerId;
+  final String? officerName;
+
+  String get status {
+    final rawStatus = _status ?? 'Pending';
+    final normalizedStatus = rawStatus.toLowerCase().trim();
+    final isOfficerAssigned = assignedOfficerId != null ||
+        (officerName != null && officerName!.isNotEmpty);
+    if (isOfficerAssigned && (normalizedStatus == 'pending' || normalizedStatus == 'filed')) {
+      return 'under review';
+    }
+    return rawStatus;
+  }
+
   FirItem({
     required this.id,
     this.trackingNumber,
     required this.title,
     required this.date,
-    this.status = 'Pending',
+    String? status = 'Pending',
     this.address = '',
     this.city = '',
     this.district = '',
@@ -55,7 +71,12 @@ class FirItem {
     this.category = '',
     String? ledgerHash,
     this.evidence = const [],
-  }) : ledgerHash = ledgerHash ?? _genHash();
+    this.latitude,
+    this.longitude,
+    this.assignedOfficerId,
+    this.officerName,
+  }) : _status = status ?? 'Pending',
+       ledgerHash = ledgerHash ?? _genHash();
 
   factory FirItem.fromJson(Map<String, dynamic> json) {
     return FirItem(
@@ -74,6 +95,16 @@ class FirItem {
               ?.map((e) => EvidenceItem.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      latitude: json['latitude'] != null
+          ? double.tryParse(json['latitude'].toString())
+          : null,
+      longitude: json['longitude'] != null
+          ? double.tryParse(json['longitude'].toString())
+          : null,
+      assignedOfficerId: json['assigned_officer_id'] != null
+          ? int.tryParse(json['assigned_officer_id'].toString())
+          : null,
+      officerName: json['officer_name']?.toString(),
     );
   }
 

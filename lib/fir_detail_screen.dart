@@ -8,6 +8,8 @@ import 'theme.dart';
 import 'fir_model.dart';
 import 'app_nav.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class FirDetailScreen extends StatefulWidget {
   final FirItem fir;
@@ -171,34 +173,45 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
   int get _currentStep {
     final statusMap = {
       'pending': 0,
+      'filed': 0,
+      'under_review': 1,
       'under review': 1,
+      'reviewed': 1,
+      'under_investigation': 2,
+      'under investigation': 2,
       'investigating': 2,
       'resolved': 3,
       'closed': 4,
     };
-    final idx = statusMap[_currentFir.status.toLowerCase()];
+    final idx = statusMap[_currentFir.status.toLowerCase().trim()];
     return idx ?? 0;
   }
 
   Color get _statusColor {
-    switch (_currentFir.status.toLowerCase()) {
+    final status = _currentFir.status.toLowerCase().trim();
+    switch (status) {
       case 'pending':
         return const Color(0xFFF59E0B);
       case 'investigating':
+      case 'under_investigation':
         return const Color(0xFF3B82F6);
       case 'resolved':
         return kGreen;
       case 'closed':
         return kTextSub;
       case 'under review':
+      case 'under_review':
         return const Color(0xFF8B5CF6);
       default:
         return kTextSub;
     }
   }
 
-  // Derive a mock officer name from the district
+  // Return real officer name if available, otherwise derive a mock officer name from the district
   String get _officerName {
+    if (_currentFir.officerName != null && _currentFir.officerName!.isNotEmpty) {
+      return _currentFir.officerName!;
+    }
     const officers = [
       'Inspector Muhammad Asif',
       'Sub-Inspector Tariq Mahmood',
@@ -212,13 +225,127 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
 
   String get _officerRank {
     final name = _officerName;
-    if (name.startsWith('DSP')) return 'Deputy Superintendent of Police';
-    if (name.startsWith('Sub-Inspector')) return 'Sub-Investigating Officer';
+    if (name.startsWith('DSP') || name.startsWith('Deputy')) return 'Deputy Superintendent of Police';
+    if (name.startsWith('Sub-Inspector') || name.startsWith('SI')) return 'Sub-Investigating Officer';
+    if (name.startsWith('ASI') || name.startsWith('Assistant')) return 'Assistant Sub-Investigating Officer';
+    if (name.startsWith('Inspector')) return 'Investigating Officer';
+    if (name.contains('Constable')) return 'Constable / Security Officer';
     return 'Investigating Officer';
+  }
+
+  LatLng? _parseCoordinates(String address) {
+    try {
+      // Matches coordinates with optional square brackets [33.6844, 73.0479] or raw 33.6844, 73.0479
+      final regExp = RegExp(r'(?:\[\s*)?(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)(?:\s*\])?');
+      final match = regExp.firstMatch(address);
+      if (match != null && match.groupCount == 2) {
+        final lat = double.parse(match.group(1)!);
+        final lng = double.parse(match.group(2)!);
+        // Sanity check to avoid matching random number pairs in generic addresses
+        if (lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0) {
+          return LatLng(lat, lng);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error parsing coordinates: $e');
+    }
+    return null;
+  }
+
+  Widget _buildMapCard(LatLng latLng) {
+    return _SectionCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.map_rounded, color: kGold, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'Incident Location Map',
+                    style: TextStyle(
+                      color: kTextSub,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  height: 200,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: latLng,
+                      initialZoom: 14.0,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.sach.portal',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: latLng,
+                            width: 30,
+                            height: 44,
+                            alignment: Alignment.topCenter,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.max,
+                              children: [
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: kGold,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.4),
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.location_on_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                                Container(width: 2, height: 14, color: kGold),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final parsedLatLng = _currentFir.latitude != null && _currentFir.longitude != null
+        ? LatLng(_currentFir.latitude!, _currentFir.longitude!)
+        : _parseCoordinates(_currentFir.address);
     return Scaffold(
       backgroundColor: kBgDeep,
       appBar: _buildAppBar(context),
@@ -233,6 +360,10 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
             const SizedBox(height: 20),
             _buildInfoCard(context),
             const SizedBox(height: 16),
+            if (parsedLatLng != null) ...[
+              _buildMapCard(parsedLatLng),
+              const SizedBox(height: 16),
+            ],
             if (_currentFir.description.isNotEmpty) ...[
               _buildDescriptionCard(),
               const SizedBox(height: 16),
@@ -273,7 +404,9 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
             ),
           ),
           Text(
-            _currentFir.id,
+            _currentFir.trackingNumber != null && _currentFir.trackingNumber!.isNotEmpty
+                ? 'Tracking No: ${_currentFir.trackingNumber!}'
+                : 'Tracking No: Pending',
             style: const TextStyle(
               color: kGold,
               fontSize: 11,
@@ -303,84 +436,105 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: List.generate(_pipeline.length * 2 - 1, (i) {
-          if (i.isOdd) {
-            final lineIdx = i ~/ 2;
-            final done = step > lineIdx;
-            return Expanded(
-              child: Container(
-                height: 2,
-                decoration: BoxDecoration(
-                  gradient: done
-                      ? const LinearGradient(colors: [kGreen, kGreen])
-                      : null,
-                  color: done ? null : kDivider,
-                ),
-              ),
-            );
-          }
-          final idx = i ~/ 2;
-          final done = step > idx;
-          final active = step == idx;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 30,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(_pipeline.length * 2 - 1, (i) {
+              if (i.isOdd) {
+                final lineIdx = i ~/ 2;
+                final done = step > lineIdx;
+                return Expanded(
+                  child: Container(
+                    height: 2,
+                    decoration: BoxDecoration(
+                      gradient: done
+                          ? const LinearGradient(colors: [kGreen, kGreen])
+                          : null,
+                      color: done ? null : kDivider,
+                    ),
+                  ),
+                );
+              }
+              final idx = i ~/ 2;
+              final done = step > idx;
+              final active = step == idx;
+              return SizedBox(
+                width: 55,
                 height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: done
-                      ? kGreen
-                      : active
-                      ? _statusColor
-                      : kDivider.withOpacity(0.3),
-                  border: Border.all(
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done
+                          ? kGreen
+                          : active
+                          ? _statusColor
+                          : kDivider.withOpacity(0.3),
+                      border: Border.all(
+                        color: done
+                            ? kGreen
+                            : active
+                            ? _statusColor
+                            : kDivider,
+                        width: 2,
+                      ),
+                      boxShadow: (done || active)
+                          ? [
+                              BoxShadow(
+                                color: (done ? kGreen : _statusColor).withOpacity(
+                                  0.3,
+                                ),
+                                blurRadius: 8,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      done ? Icons.check_rounded : _stepIcon(idx),
+                      color: (done || active) ? Colors.white : kTextSub,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(_pipeline.length * 2 - 1, (i) {
+              if (i.isOdd) {
+                return const Expanded(child: SizedBox());
+              }
+              final idx = i ~/ 2;
+              final done = step > idx;
+              final active = step == idx;
+              return SizedBox(
+                width: 55,
+                child: Text(
+                  _pipelineLabels[idx],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
                     color: done
                         ? kGreen
                         : active
                         ? _statusColor
-                        : kDivider,
-                    width: 2,
+                        : kTextSub,
+                    fontSize: 9,
+                    fontWeight: (done || active)
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                   ),
-                  boxShadow: (done || active)
-                      ? [
-                          BoxShadow(
-                            color: (done ? kGreen : _statusColor).withOpacity(
-                              0.3,
-                            ),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : null,
                 ),
-                child: Icon(
-                  done ? Icons.check_rounded : _stepIcon(idx),
-                  color: (done || active) ? Colors.white : kTextSub,
-                  size: 14,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                _pipelineLabels[idx],
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: done
-                      ? kGreen
-                      : active
-                      ? _statusColor
-                      : kTextSub,
-                  fontSize: 9,
-                  fontWeight: (done || active)
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                ),
-              ),
-            ],
-          );
-        }),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
@@ -421,12 +575,6 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
           ),
           const _Divider(),
         ],
-        _DetailRow(icon: Icons.tag_rounded, label: 'Case ID', value: _currentFir.id),
-        if (_currentFir.trackingNumber != null && _currentFir.trackingNumber!.isNotEmpty) ...[
-          const _Divider(),
-          _DetailRow(icon: Icons.radar_rounded, label: 'Tracking Number', value: _currentFir.trackingNumber!, highlight: true),
-        ],
-        const _Divider(),
         _DetailRow(
           icon: Icons.calendar_today_rounded,
           label: 'Date Filed',
@@ -497,7 +645,9 @@ class _FirDetailScreenState extends State<FirDetailScreen> {
 
   // ── Officer Card ───────────────────────────────────────────────────────────
   Widget _buildOfficerCard(BuildContext context) {
-    final isAssigned = _currentFir.status.toLowerCase() != 'pending';
+    final isAssigned = _currentFir.assignedOfficerId != null ||
+        (_currentFir.officerName != null && _currentFir.officerName!.isNotEmpty) ||
+        _currentFir.status.toLowerCase() != 'pending';
     return _SectionCard(
       children: [
         Padding(

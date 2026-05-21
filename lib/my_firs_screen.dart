@@ -24,7 +24,7 @@ class MyFirsScreen extends StatefulWidget {
 
 class _MyFirsScreenState extends State<MyFirsScreen> {
   String _search = '';
-  String? _filterStatus; // null = All
+  String _filterStatus = 'All';
 
   @override
   void initState() {
@@ -51,8 +51,22 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
           _search.isEmpty ||
           f.id.toLowerCase().contains(_search.toLowerCase()) ||
           f.title.toLowerCase().contains(_search.toLowerCase());
-      final matchStatus = _filterStatus == null || f.status == _filterStatus;
-      return matchSearch && matchStatus;
+      if (_filterStatus == 'All') return matchSearch;
+
+      final fStatus = f.status.toLowerCase().replaceAll('_', ' ').trim();
+      final filterStatusNormalized = _filterStatus.toLowerCase().replaceAll('_', ' ').trim();
+
+      bool isMatch = fStatus == filterStatusNormalized;
+      if (!isMatch) {
+        if (filterStatusNormalized == 'investigating' && fStatus == 'under investigation') {
+          isMatch = true;
+        } else if (filterStatusNormalized == 'under review' && fStatus == 'reviewed') {
+          isMatch = true;
+        } else if (filterStatusNormalized == 'pending' && fStatus == 'filed') {
+          isMatch = true;
+        }
+      }
+      return matchSearch && isMatch;
     }).toList();
   }
 
@@ -61,81 +75,6 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
     if (result != null) FirStore.instance.add(result);
   }
 
-  Future<void> _openTrackingDialog() async {
-    final ctrl = TextEditingController();
-    bool isTracking = false;
-    String? errorMsg;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              backgroundColor: kBgCard,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Track FIR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Enter the tracking number or ID of the FIR.', style: TextStyle(color: kTextSub, fontSize: 13)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: ctrl,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. TRK-12345',
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                      filled: true,
-                      fillColor: kInputBg,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      errorText: errorMsg,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isTracking ? null : () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: kTextSub)),
-                ),
-                ElevatedButton(
-                  onPressed: isTracking ? null : () async {
-                    if (ctrl.text.trim().isEmpty) return;
-                    setStateDialog(() { isTracking = true; errorMsg = null; });
-                    try {
-                      final response = await ApiService.get('/user/fir/track/${ctrl.text.trim()}');
-                      if (response.statusCode == 200) {
-                        final data = jsonDecode(response.body);
-                        final fir = FirItem.fromJson(data);
-                        if (mounted) {
-                          Navigator.pop(ctx);
-                          sachPush(this.context, FirDetailScreen(fir: fir));
-                        }
-                      } else {
-                        setStateDialog(() => errorMsg = 'FIR not found or invalid tracking number');
-                      }
-                    } catch (e) {
-                      setStateDialog(() => errorMsg = 'Network error');
-                    } finally {
-                      setStateDialog(() => isTracking = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kGreen,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: isTracking
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Track', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          }
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,18 +92,18 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
               title: S.myComplaints,
               actions: [
                 // Filter button
-                PopupMenuButton<String?>(
+                PopupMenuButton<String>(
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       Icon(
                         Icons.filter_list_rounded,
-                        color: _filterStatus != null
+                        color: _filterStatus != 'All'
                             ? kGold
                             : Colors.white.withOpacity(0.75),
                         size: 24,
                       ),
-                      if (_filterStatus != null)
+                      if (_filterStatus != 'All')
                         Positioned(
                           right: -2,
                           top: -2,
@@ -187,7 +126,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
                   onSelected: (v) => setState(() => _filterStatus = v),
                   itemBuilder: (_) {
                     const statuses = [
-                      null,
+                      'All',
                       'Pending',
                       'Investigating',
                       'Resolved',
@@ -204,7 +143,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
                     ];
                     return List.generate(statuses.length, (i) {
                       final selected = _filterStatus == statuses[i];
-                      return PopupMenuItem<String?>(
+                      return PopupMenuItem<String>(
                         value: statuses[i],
                         padding: EdgeInsets.zero,
                         child: Container(
@@ -267,34 +206,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
                   },
                 ),
                 // 3-dots menu
-                buildAppMenu(context, 1, extraItems: [
-                  PopupMenuItem<String>(
-                    value: 'track_fir',
-                    onTap: () {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _openTrackingDialog();
-                      });
-                    },
-                    padding: EdgeInsets.zero,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.radar_rounded, color: kGold, size: 18),
-                          SizedBox(width: 12),
-                          Text(
-                            'Track FIR',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ]),
+                buildAppMenu(context, 1),
               ],
             ),
           ),
@@ -363,7 +275,7 @@ class _MyFirsScreenState extends State<MyFirsScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            _filterStatus != null
+            _filterStatus != 'All'
                 ? '${S.noComplaintsFilter} — $_filterStatus'
                 : S.noComplaintsYet,
             style: TextStyle(
@@ -386,19 +298,48 @@ class _MyFirCard extends StatelessWidget {
   const _MyFirCard({required this.item});
 
   Color get _statusColor {
-    switch (item.status) {
-      case 'Pending':
+    final status = item.status.toLowerCase().trim();
+    switch (status) {
+      case 'pending':
+      case 'filed':
         return const Color(0xFFF59E0B);
-      case 'Investigating':
-        return const Color(0xFF3B82F6);
-      case 'Resolved':
-        return kGreen;
-      case 'Closed':
-        return kTextSub;
-      case 'Under Review':
+      case 'under_review':
+      case 'under review':
+      case 'reviewed':
         return const Color(0xFF8B5CF6);
+      case 'under_investigation':
+      case 'under investigation':
+      case 'investigating':
+        return const Color(0xFF3B82F6);
+      case 'resolved':
+        return kGreen;
+      case 'closed':
+        return kTextSub;
       default:
         return kTextSub;
+    }
+  }
+
+  String get _statusLabel {
+    final status = item.status.toLowerCase().trim();
+    switch (status) {
+      case 'pending':
+      case 'filed':
+        return 'Pending';
+      case 'under_review':
+      case 'under review':
+      case 'reviewed':
+        return 'Under Review';
+      case 'under_investigation':
+      case 'under investigation':
+      case 'investigating':
+        return 'Investigating';
+      case 'resolved':
+        return 'Resolved';
+      case 'closed':
+        return 'Closed';
+      default:
+        return item.status.replaceAll('_', ' ').split(' ').map((str) => str.isNotEmpty ? '${str[0].toUpperCase()}${str.substring(1)}' : '').join(' ');
     }
   }
 
@@ -463,14 +404,16 @@ class _MyFirCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  item.id,
+                                  item.trackingNumber != null && item.trackingNumber!.isNotEmpty
+                                      ? item.trackingNumber!
+                                      : 'Tracking No: Pending',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
                                     fontSize: 13,
@@ -505,7 +448,7 @@ class _MyFirCard extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              item.status,
+                              _statusLabel,
                               style: TextStyle(
                                 color: _statusColor,
                                 fontSize: 11,

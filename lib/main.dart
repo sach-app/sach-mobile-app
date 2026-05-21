@@ -9,8 +9,6 @@ import 'alerts_screen.dart';
 import 'profile_screen.dart';
 import 'file_fir_screen.dart';
 import 'edit_profile_screen.dart';
-import 'privacy_settings_screen.dart';
-import 'notification_settings_screen.dart';
 import 'main_screen.dart';
 import 'app_nav.dart';
 
@@ -18,13 +16,17 @@ class AppRefreshObserver extends NavigatorObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPush(route, previousRoute);
-    triggerGlobalRefresh();
+    if (route is PageRoute) {
+      triggerGlobalRefresh();
+    }
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPop(route, previousRoute);
-    triggerGlobalRefresh();
+    if (route is PageRoute) {
+      triggerGlobalRefresh();
+    }
   }
 }
 
@@ -54,9 +56,6 @@ class SachApp extends StatelessWidget {
         '/profile': (context) => const ProfileScreen(),
         '/file_fir': (context) => const FileFirScreen(),
         '/edit_profile': (context) => const EditProfileScreen(),
-        '/privacy_settings': (context) => const PrivacySettingsScreen(),
-        '/notification_settings': (context) =>
-            const NotificationSettingsScreen(),
       },
     );
   }

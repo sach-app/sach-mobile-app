@@ -21,30 +21,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _altPhoneCtrl;
   late final TextEditingController _emailCtrl;
 
-  late final TextEditingController _cityCtrl;
-  late String? _selectedDistrict;
-
   bool _isLoading = false;
   bool _isUploadingAvatar = false;
-
-  // 15 Pakistan districts
-  static const List<String> _districts = [
-    'Karachi',
-    'Lahore',
-    'Islamabad',
-    'Rawalpindi',
-    'Faisalabad',
-    'Multan',
-    'Peshawar',
-    'Quetta',
-    'Sialkot',
-    'Gujranwala',
-    'Hyderabad',
-    'Bahawalpur',
-    'Sargodha',
-    'Sukkur',
-    'Larkana',
-  ];
 
   @override
   void initState() {
@@ -53,15 +31,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _altPhoneCtrl = TextEditingController(text: p.altPhone);
 
     _emailCtrl = TextEditingController(text: p.email);
-    _cityCtrl = TextEditingController(text: p.city);
-    _selectedDistrict = _districts.contains(p.district) ? p.district : null;
   }
 
   @override
   void dispose() {
     _altPhoneCtrl.dispose();
     _emailCtrl.dispose();
-    _cityCtrl.dispose();
     super.dispose();
   }
 
@@ -85,8 +60,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           altPhone: _altPhoneCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           address: UserProfileStore.instance.profile.address,
-          district: _selectedDistrict ?? '',
-          city: _cityCtrl.text.trim(),
+          district: UserProfileStore.instance.profile.district,
+          city: UserProfileStore.instance.profile.city,
         );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -287,15 +262,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 16),
 
                 SachLabel(S.district),
-                _buildDistrictDropdown(),
+                _lockedField(profile.district.isNotEmpty ? profile.district : 'Not provided'),
                 const SizedBox(height: 16),
 
                 SachLabel(S.epCity),
-                TextFormField(
-                  controller: _cityCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: sachInputDecoration(hint: S.epCityHint),
-                ),
+                _lockedField(profile.city.isNotEmpty ? profile.city : 'Not provided'),
                 const SizedBox(height: 24),
 
                 // ── Locked fields notice ──────────────────────────────────
@@ -488,20 +459,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // ── District dropdown ─────────────────────────────────────────────────────
-  Widget _buildDistrictDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedDistrict,
-      dropdownColor: kBgCard,
-      decoration: sachInputDecoration(hint: S.selectDistrict),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: kTextSub),
-      style: const TextStyle(color: Colors.white, fontSize: 14),
-      items: _districts
-          .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-          .toList(),
-      onChanged: (v) => setState(() => _selectedDistrict = v),
-    );
-  }
+
 
   // ── Locked fields notice ──────────────────────────────────────────────────
   Widget _buildLockedNotice() {

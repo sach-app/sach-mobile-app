@@ -5,8 +5,6 @@ import 'app_nav.dart';
 import 'edit_profile_screen.dart';
 import 'app_strings.dart';
 import 'user_profile_store.dart';
-import 'privacy_settings_screen.dart';
-import 'notification_settings_screen.dart';
 import 'change_password_dialog.dart';
 import 'locale_store.dart';
 import 'sach_header.dart';
@@ -140,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ]),
               const SizedBox(height: 20),
 
-              // ── Account Settings ──────────────────────────────────────────
+              // ── Settings ──────────────────────────────────────────
               _buildSectionHeader(S.accountSettings),
               const SizedBox(height: 12),
               _buildSettingsTile(
@@ -150,17 +148,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 8),
               _buildSettingsTile(
-                icon: Icons.lock_outline_rounded,
-                label: S.privacySettings,
-                onTap: () => sachPush(context, const PrivacySettingsScreen()),
+                icon: Icons.settings_rounded,
+                label: S.accountSettings,
+                onTap: () => sachPush(context, const EditProfileScreen()),
               ),
               const SizedBox(height: 8),
-              _buildSettingsTile(
-                icon: Icons.notifications_none_rounded,
-                label: S.notifSettings,
-                onTap: () =>
-                    sachPush(context, const NotificationSettingsScreen()),
-              ),
+              _buildLanguageTile(context),
               const SizedBox(height: 8),
               _buildSettingsTile(
                 icon: Icons.logout_rounded,
@@ -480,6 +473,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageTile(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: kBgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kDivider, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: kInputBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kDivider),
+            ),
+            child: const Icon(Icons.language_rounded, color: kGold, size: 18),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              S.changeLanguage,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<bool>(
+              value: LocaleStore.instance.isUrdu,
+              dropdownColor: kBgDeep,
+              borderRadius: BorderRadius.circular(12),
+              icon: const Icon(Icons.arrow_drop_down_rounded, color: kGold),
+              style: const TextStyle(
+                color: kGold,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              items: const [
+                DropdownMenuItem(value: false, child: Text('English')),
+                DropdownMenuItem(value: true, child: Text('اردو')),
+              ],
+              onChanged: (bool? isUrdu) {
+                if (isUrdu != null && isUrdu != LocaleStore.instance.isUrdu) {
+                  LocaleStore.instance.toggle();
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
